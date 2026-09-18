@@ -1,15 +1,7 @@
 import { internalMutation, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
-const weapon = v.union(
-  v.literal("GREATSWORD"),
-  v.literal("DAGGER"),
-  v.literal("CROSSBOW"),
-  v.literal("LONGBOW"),
-  v.literal("STAFF"),
-  v.literal("WAND"),
-  v.literal("SWORD_AND_SHIELD"),
-);
+const weapon = v.string();
 
 const team = v.union(v.literal("BLUE"), v.literal("RED"));
 
@@ -198,6 +190,111 @@ export const applications = query({
     return Promise.all(rows.map((row) => loadApplication(ctx, row)));
   },
 });
+
+const seedClasses = [
+  ["GREATSWORD", "Greatsword", ["greatsword", "great sword", "gs"]],
+  ["DAGGER", "Dagger", ["dagger", "daggers"]],
+  ["CROSSBOW", "Crossbow", ["crossbow", "cross bow", "xbow"]],
+  ["LONGBOW", "Longbow", ["longbow", "long bow", "bow"]],
+  ["SWORD_AND_SHIELD", "Sword and Shield", ["sword and shield", "sword & shield", "swordshield", "sns"]],
+  ["WAND", "Wand", ["wand"]],
+  ["STAFF", "Staff", ["staff"]],
+] as const;
+
+function normalizeClassKey(value: string) {
+  return value.trim().toUpperCase().replace(/[\s-]+/g, "_");
+}
+function normalizeAliases(values: string[]) {
+  return [...new Set(values.map((value) => value.trim().toLowerCase()).filter(Boolean))];
+}
+async function ensureSeedClasses(ctx: any) {
+  const existing = await ctx.db.query("classCatalog").collect();
+  for (const [key, displayName, aliases] of seedClasses) {
+    if (!existing.some((row: any) => row.key === key)) {
+      await ctx.db.insert("classCatalog", {
+        key, displayName, aliases: [...aliases],
+        active: true, sortOrder: seedClasses.findIndex((item) => item[0] === key),
+        createdAt: Date.now(), updatedAt: Date.now(),
+      });
+    }
+  }
+}
+function classView(row: any) {
+  return { key: row.key, displayName: row.displayName, aliases: row.aliases,
+    active: row.active, sortOrder: row.sortOrder,
+    createdAt: new Date(row.createdAt).toISOString(), updatedAt: new Date(row.updatedAt).toISOString() };
+}
+async function requireActiveClasses(ctx: any, values: string[], allowedInactive = new Set<string>()) {
+  const rows = await ctx.db.query("classCatalog").collect();
+  const active = new Set((rows.length ? rows.filter((row: any) => row.active).map((row: any) => row.key) : seedClasses.map(([key]) => key)));
+  for (const value of values) if (!active.has(value) && !allowedInactive.has(value)) {
+    throw new Error(`Class "${value}" is not active in the class catalog.`);
+  }
+}
+
+export const classes = query({
+  args: { serverSecret: v.string(), includeInactive: v.optional(v.boolean()) },
+  handler: async (ctx, args) => {
+    await requireServerSecret(args.serverSecret);
+    const rows = await ctx.db.query("classCatalog").collect();
+    if (!rows.length) return seedClasses.map(([key, displayName, aliases], sortOrder) => ({
+      key, displayName, aliases: [...aliases], active: true, sortOrder,
+      createdAt: new Date(0).toISOString(), updatedAt: new Date(0).toISOString(),
+    }));
+    return rows.filter((row) => args.includeInactive || row.active).sort((a, b) => a.sortOrder - b.sortOrder).map(classView);
+  },
+});
+export const createClass = mutation({
+  args: { serverSecret: v.string(), key: v.string(), displayName: v.string(), aliases: v.array(v.string()), sortOrder: v.optional(v.number()), actor: v.string(), reason: v.string() },
+  handler: async (ctx, args) => {
+    await requireServerSecret(args.serverSecret); validateAuditInput(args.actor, args.reason);
+    await ensureSeedClasses(ctx);
+    const key = normalizeClassKey(args.key); const displayName = args.displayName.trim();
+    if (!/^[A-Z0-9][A-Z0-9_]*$/.test(key) || !displayName) throw new Error("Invalid class key or display name.");
+    if (await ctx.db.query("classCatalog").withIndex("by_key", (q) => q.eq("key", key)).first()) throw new Error("A class with this key already exists.");
+    const now = Date.now(); const id = await ctx.db.insert("classCatalog", { key, displayName, aliases: normalizeAliases(args.aliases), active: true, sortOrder: args.sortOrder ?? 100, createdAt: now, updatedAt: now });
+    await ctx.db.insert("auditRecords", { entityType: "CLASS", entityId: key, action: "CLASS_CREATED", actor: args.actor.trim(), reason: args.reason.trim(), createdAt: now });
+    return classView(await ctx.db.get(id));
+  },
+});
+export const updateClass = mutation({
+  args: { serverSecret: v.string(), key: v.string(), displayName: v.optional(v.string()), aliases: v.optional(v.array(v.string())), active: v.optional(v.boolean()), sortOrder: v.optional(v.number()), actor: v.string(), reason: v.string() },
+  handler: async (ctx, args) => {
+    await requireServerSecret(args.serverSecret); validateAuditInput(args.actor, args.reason);
+    await ensureSeedClasses(ctx);
+    const row = await ctx.db.query("classCatalog").withIndex("by_key", (q) => q.eq("key", args.key)).first();
+    if (!row) throw new Error("Class not found.");
+    const patch: any = { updatedAt: Date.now() };
+    if (args.displayName !== undefined) patch.displayName = args.displayName.trim();
+    if (args.aliases !== undefined) patch.aliases = normalizeAliases(args.aliases);
+    if (args.active !== undefined) patch.active = args.active;
+    if (args.sortOrder !== undefined) patch.sortOrder = args.sortOrder;
+    await ctx.db.patch(row._id, patch);
+    await ctx.db.insert("auditRecords", { entityType: "CLASS", entityId: row.key, action: args.active === false ? "CLASS_DISABLED" : args.active === true ? "CLASS_ENABLED" : "CLASS_UPDATED", actor: args.actor.trim(), reason: args.reason.trim(), before: JSON.stringify(classView(row)), after: JSON.stringify({ ...classView(row), ...patch, updatedAt: new Date(patch.updatedAt).toISOString() }), createdAt: Date.now() });
+    return classView({ ...row, ...patch });
+  },
+});
+export const deleteClass = mutation({
+  args: { serverSecret: v.string(), key: v.string(), actor: v.string(), reason: v.string() },
+  handler: async (ctx, args) => {
+    await requireServerSecret(args.serverSecret); validateAuditInput(args.actor, args.reason);
+    await ensureSeedClasses(ctx);
+    const row = await ctx.db.query("classCatalog").withIndex("by_key", (q) => q.eq("key", args.key)).first();
+    if (!row) throw new Error("Class not found.");
+    if (row.active) throw new Error("Disable the class before deleting it.");
+    const [members, participants] = await Promise.all([
+      ctx.db.query("applicationMembers").withIndex("by_main_class", (q) => q.eq("mainWeapon", row.key)).collect(),
+      ctx.db.query("matchParticipants").withIndex("by_main_class", (q) => q.eq("mainWeapon", row.key)).collect(),
+    ]);
+    const [memberOff, participantOff] = await Promise.all([
+      ctx.db.query("applicationMembers").withIndex("by_off_class", (q) => q.eq("offWeapon", row.key)).collect(),
+      ctx.db.query("matchParticipants").withIndex("by_off_class", (q) => q.eq("offWeapon", row.key)).collect(),
+    ]);
+    if (members.length || participants.length || memberOff.length || participantOff.length) throw new Error("This class is referenced by historical records and cannot be deleted.");
+    await ctx.db.delete(row._id);
+    await ctx.db.insert("auditRecords", { entityType: "CLASS", entityId: row.key, action: "CLASS_DELETED", actor: args.actor.trim(), reason: args.reason.trim(), before: JSON.stringify(classView(row)), createdAt: Date.now() });
+  },
+});
 export const submitApplication = mutation({
   args: {
     serverSecret: v.string(),
@@ -228,6 +325,7 @@ export const submitApplication = mutation({
     if (args.members.length !== 6) {
       throw new Error("A roster application must contain exactly six players.");
     }
+    await requireActiveClasses(ctx, args.members.flatMap((member) => [member.mainWeapon, member.offWeapon]));
     if (args.members.some((member) =>
       member.characterName.trim().length < 2 || member.characterName.length > 40
     )) {
@@ -302,6 +400,7 @@ export const commitMatch = mutation({
       throw new Error("The scoreboard screenshot upload could not be found.");
     }
     validateParticipants(args.participants);
+    await requireActiveClasses(ctx, args.participants.flatMap((participant) => [participant.mainWeapon, participant.offWeapon]));
     const matchId = await ctx.db.insert("matches", {
       matchDate: args.matchDate ?? Date.now(),
       status: "COMPLETED",
@@ -354,6 +453,10 @@ export const correctMatch = mutation({
     await requireServerSecret(args.serverSecret);
     validateAuditInput(args.actor, args.reason);
     validateParticipants(args.participants);
+    const historicalRows = await ctx.db.query("matchParticipants")
+      .withIndex("by_match", (q: any) => q.eq("matchId", args.matchId)).collect();
+    const historicalClasses = new Set(historicalRows.flatMap((row: any) => [row.mainWeapon, row.offWeapon]));
+    await requireActiveClasses(ctx, args.participants.flatMap((participant) => [participant.mainWeapon, participant.offWeapon]), historicalClasses);
     const match = await ctx.db.get(args.matchId);
     if (!match || match.status === "PROCESSING") throw new Error("Match not found.");
     if (match.status === "DISCARDED") throw new Error("A discarded match cannot be corrected.");

@@ -6,7 +6,7 @@ import {
   getGetMatchesQueryKey,
   TeamColor,
   useCommitMatch,
-  Weapon,
+  useGetClasses,
 } from '@workspace/api-client-react';
 import type { MatchInput } from '@workspace/api-client-react';
 import {
@@ -15,10 +15,9 @@ import {
   type VerifiedParticipant,
 } from '@/lib/scoreboard-ocr';
 
-const weapons = Object.values(Weapon);
 const supportedDimensions = new Set(['1920x1080', '2560x1440']);
 
-const weaponLabel = (weapon: Weapon) =>
+const weaponLabel = (weapon: string) =>
   weapon.toLowerCase().replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 
 const fileToBase64 = (file: File) =>
@@ -50,6 +49,8 @@ export function ScoreboardVerifier({
   const [winningTeam, setWinningTeam] = useState<TeamColor>(TeamColor.BLUE);
   const [note, setNote] = useState('');
   const commitMutation = useCommitMatch({ request: adminRequest });
+  const classes = useGetClasses();
+  const classOptions = classes.data ?? [];
   const queryClient = useQueryClient();
 
   const chooseFile = async (selected: File | undefined) => {
@@ -77,7 +78,7 @@ export function ScoreboardVerifier({
     setProgress(0);
     setError('');
     try {
-      const result = await extractScoreboard(file, setProgress);
+       const result = await extractScoreboard(file, setProgress, classOptions);
       setParticipants(result.participants);
       setConfidence(result.confidence);
     } catch {
@@ -162,8 +163,8 @@ export function ScoreboardVerifier({
       participants: participants.map(({ confidence: _confidence, confirmed: _confirmed, ...participant }) => ({
         ...participant,
         characterName: participant.characterName.trim(),
-        mainWeapon: participant.mainWeapon as Weapon,
-        offWeapon: participant.offWeapon as Weapon,
+         mainWeapon: participant.mainWeapon as string,
+         offWeapon: participant.offWeapon as string,
         kills: participant.kills as number,
         assists: participant.assists as number,
         damageDealt: participant.damageDealt as number,
@@ -265,8 +266,8 @@ export function ScoreboardVerifier({
                       </select>
                     </td>
                     <td className="p-2"><input aria-label={`Character ${index + 1}`} value={participant.characterName} onChange={(event) => updateParticipant(index, 'characterName', event.target.value)} className="field-input min-w-36" /></td>
-                    <td className="p-2"><WeaponSelect value={participant.mainWeapon} onChange={(value) => updateParticipant(index, 'mainWeapon', value)} /></td>
-                    <td className="p-2"><WeaponSelect value={participant.offWeapon} onChange={(value) => updateParticipant(index, 'offWeapon', value)} /></td>
+                     <td className="p-2"><WeaponSelect options={classOptions} value={participant.mainWeapon} onChange={(value) => updateParticipant(index, 'mainWeapon', value)} /></td>
+                     <td className="p-2"><WeaponSelect options={classOptions} value={participant.offWeapon} onChange={(value) => updateParticipant(index, 'offWeapon', value)} /></td>
                     {(['kills', 'assists', 'damageDealt', 'healingDone'] as const).map((key) => (
                       <td className="p-2" key={key}><input aria-label={`${key} ${index + 1}`} type="number" min="0" step="1" value={participant[key] ?? ''} onChange={(event) => updateParticipant(index, key, event.target.value === '' ? null : Math.max(0, Number.parseInt(event.target.value, 10)))} className="field-input w-24" /></td>
                     ))}
@@ -299,6 +300,6 @@ export function ScoreboardVerifier({
   );
 }
 
-function WeaponSelect({ value, onChange }: { value: Weapon | null; onChange: (value: Weapon | null) => void }) {
-  return <select aria-label="Weapon" value={value ?? ''} onChange={(event) => onChange(event.target.value ? event.target.value as Weapon : null)} className="field-input min-w-36"><option value="">Select weapon</option>{weapons.map((weapon) => <option key={weapon} value={weapon}>{weaponLabel(weapon)}</option>)}</select>;
+function WeaponSelect({ options, value, onChange }: { options: Array<{ key: string; displayName: string }>; value: string | null; onChange: (value: string | null) => void }) {
+  return <select aria-label="Class" value={value ?? ''} onChange={(event) => onChange(event.target.value || null)} className="field-input min-w-36"><option value="">Select class</option>{options.map((entry) => <option key={entry.key} value={entry.key}>{entry.displayName || weaponLabel(entry.key)}</option>)}</select>;
 }

@@ -1,16 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
-const weapon = v.union(
-  v.literal("GREATSWORD"),
-  v.literal("DAGGER"),
-  v.literal("CROSSBOW"),
-  v.literal("LONGBOW"),
-  v.literal("STAFF"),
-  v.literal("WAND"),
-  v.literal("SWORD_AND_SHIELD"),
-);
-
 const team = v.union(v.literal("BLUE"), v.literal("RED"));
 
 export default defineSchema({
@@ -43,9 +33,20 @@ export default defineSchema({
   applicationMembers: defineTable({
     applicationId: v.id("applications"),
     playerId: v.id("players"),
-    mainWeapon: weapon,
-    offWeapon: weapon,
-  }).index("by_application", ["applicationId"]),
+    mainWeapon: v.string(),
+    offWeapon: v.string(),
+  }).index("by_application", ["applicationId"])
+    .index("by_main_class", ["mainWeapon"])
+    .index("by_off_class", ["offWeapon"]),
+  classCatalog: defineTable({
+    key: v.string(),
+    displayName: v.string(),
+    aliases: v.array(v.string()),
+    active: v.boolean(),
+    sortOrder: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_key", ["key"]).index("by_active_sort", ["active", "sortOrder"]),
   matches: defineTable({
     matchDate: v.number(),
     status: v.union(
@@ -58,7 +59,7 @@ export default defineSchema({
     note: v.optional(v.string()),
   }).index("by_match_date", ["matchDate"]),
   auditRecords: defineTable({
-    entityType: v.union(v.literal("APPLICATION"), v.literal("MATCH")),
+    entityType: v.union(v.literal("APPLICATION"), v.literal("MATCH"), v.literal("CLASS")),
     entityId: v.string(),
     action: v.union(
       v.literal("APPLICATION_APPROVED"),
@@ -68,6 +69,11 @@ export default defineSchema({
       v.literal("MATCH_CORRECTED"),
       v.literal("MATCH_DISCARDED"),
       v.literal("MATCH_RESTORED"),
+      v.literal("CLASS_CREATED"),
+      v.literal("CLASS_UPDATED"),
+      v.literal("CLASS_ENABLED"),
+      v.literal("CLASS_DISABLED"),
+      v.literal("CLASS_DELETED"),
     ),
     actor: v.string(),
     reason: v.optional(v.string()),
@@ -82,8 +88,8 @@ export default defineSchema({
     playerId: v.id("players"),
     team,
     isWinner: v.boolean(),
-    mainWeapon: weapon,
-    offWeapon: weapon,
+    mainWeapon: v.string(),
+    offWeapon: v.string(),
     kills: v.number(),
     assists: v.number(),
     damageDealt: v.number(),
@@ -91,7 +97,9 @@ export default defineSchema({
   })
     .index("by_match", ["matchId"])
     .index("by_player", ["playerId"])
-    .index("by_weapon_pair", ["mainWeapon", "offWeapon"]),
+    .index("by_weapon_pair", ["mainWeapon", "offWeapon"])
+    .index("by_main_class", ["mainWeapon"])
+    .index("by_off_class", ["offWeapon"]),
   personalRecords: defineTable({
     playerId: v.id("players"),
     matchId: v.id("matches"),

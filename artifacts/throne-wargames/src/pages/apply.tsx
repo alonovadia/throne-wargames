@@ -3,17 +3,12 @@ import { useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useCreateApplication } from '@workspace/api-client-react';
-import { Weapon } from '@workspace/api-client-react';
+import { useCreateApplication, useGetClasses } from '@workspace/api-client-react';
 import type { ApplicationInput } from '@workspace/api-client-react';
 import { PageIntro } from '@/components/wargames-shell';
 import { Form } from '@/components/ui/form';
 
-const weapons = Object.values(Weapon);
-const weaponSchema = z.string().refine(
-  (value) => weapons.includes(value as Weapon),
-  'Select a weapon',
-);
+const weaponSchema = z.string().min(1, 'Select a class');
 const memberSchema = z.object({
   characterName: z.string().min(2, 'Enter a character name').max(40),
   mainWeapon: weaponSchema,
@@ -36,6 +31,8 @@ export default function ApplyPage() {
   const formStartedAt = useRef(Date.now());
   const submissionToken = useRef(crypto.randomUUID());
   const mutation = useCreateApplication();
+  const classes = useGetClasses();
+  const classOptions = classes.data ?? [];
   const form = useForm<ApplicationForm>({
     resolver: zodResolver(applicationSchema),
     defaultValues: {
@@ -50,8 +47,8 @@ export default function ApplyPage() {
   const completedMembers = form.watch('members').filter(
     (member) =>
       member.characterName.trim().length >= 2 &&
-      weapons.includes(member.mainWeapon as Weapon) &&
-      weapons.includes(member.offWeapon as Weapon),
+       classOptions.some((entry) => entry.key === member.mainWeapon) &&
+       classOptions.some((entry) => entry.key === member.offWeapon),
   ).length;
 
   const submit = (values: ApplicationForm) => {
@@ -113,8 +110,8 @@ export default function ApplyPage() {
                     <div key={index} className="grid gap-3 border border-border bg-card p-4 sm:grid-cols-[30px_1.2fr_1fr_1fr] sm:items-end">
                       <div className="font-display text-xl font-bold text-muted-foreground">{String(index + 1).padStart(2, '0')}</div>
                       <Field label={index === 0 ? 'Character name' : undefined} error={form.formState.errors.members?.[index]?.characterName?.message}><input {...form.register(`members.${index}.characterName`)} data-testid={`input-member-name-${index + 1}`} placeholder={`Player ${index + 1}`} className="field-input" /></Field>
-                      <Field label={index === 0 ? 'Main weapon' : undefined} error={form.formState.errors.members?.[index]?.mainWeapon?.message}><select {...form.register(`members.${index}.mainWeapon`)} data-testid={`select-member-main-${index + 1}`} className="field-input"><option value="">Select weapon</option>{weapons.map((weapon) => <option key={weapon} value={weapon}>{weapon.replaceAll('_', ' ')}</option>)}</select></Field>
-                      <Field label={index === 0 ? 'Off weapon' : undefined} error={form.formState.errors.members?.[index]?.offWeapon?.message}><select {...form.register(`members.${index}.offWeapon`)} data-testid={`select-member-off-${index + 1}`} className="field-input"><option value="">Select weapon</option>{weapons.map((weapon) => <option key={weapon} value={weapon}>{weapon.replaceAll('_', ' ')}</option>)}</select></Field>
+                       <Field label={index === 0 ? 'Main class' : undefined} error={form.formState.errors.members?.[index]?.mainWeapon?.message}><select {...form.register(`members.${index}.mainWeapon`)} data-testid={`select-member-main-${index + 1}`} className="field-input"><option value="">Select class</option>{classOptions.map((entry) => <option key={entry.key} value={entry.key}>{entry.displayName}</option>)}</select></Field>
+                       <Field label={index === 0 ? 'Off class' : undefined} error={form.formState.errors.members?.[index]?.offWeapon?.message}><select {...form.register(`members.${index}.offWeapon`)} data-testid={`select-member-off-${index + 1}`} className="field-input"><option value="">Select class</option>{classOptions.map((entry) => <option key={entry.key} value={entry.key}>{entry.displayName}</option>)}</select></Field>
                     </div>
                   ))}
                 </div>

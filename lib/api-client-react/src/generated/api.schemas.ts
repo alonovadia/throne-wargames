@@ -9,18 +9,74 @@ export interface HealthStatus {
   status: string;
 }
 
-export type Weapon = typeof Weapon[keyof typeof Weapon];
+/**
+ * @minLength 1
+ * @maxLength 80
+ * @pattern ^[A-Z0-9][A-Z0-9_-]*$
+ */
+export type ClassKey = string;
 
+export interface ClassCatalogEntry {
+  key: ClassKey;
+  displayName: string;
+  aliases: string[];
+  active: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
 
-export const Weapon = {
-  GREATSWORD: 'GREATSWORD',
-  DAGGER: 'DAGGER',
-  CROSSBOW: 'CROSSBOW',
-  LONGBOW: 'LONGBOW',
-  STAFF: 'STAFF',
-  WAND: 'WAND',
-  SWORD_AND_SHIELD: 'SWORD_AND_SHIELD',
-} as const;
+export interface ClassCatalogCreate {
+  key: ClassKey;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  displayName: string;
+  /** @maxItems 20 */
+  aliases: string[];
+  /**
+     * @minimum 0
+     * @maximum 10000
+     */
+  sortOrder?: number;
+  /**
+     * @minLength 2
+     * @maxLength 80
+     */
+  actor: string;
+  /**
+     * @minLength 2
+     * @maxLength 500
+     */
+  reason: string;
+}
+
+export interface ClassCatalogUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  displayName?: string;
+  /** @maxItems 20 */
+  aliases?: string[];
+  active?: boolean;
+  /**
+     * @minimum 0
+     * @maximum 10000
+     */
+  sortOrder?: number;
+  /**
+     * @minLength 2
+     * @maxLength 80
+     */
+  actor: string;
+  /**
+     * @minLength 2
+     * @maxLength 500
+     */
+  reason: string;
+}
 
 export type TeamColor = typeof TeamColor[keyof typeof TeamColor];
 
@@ -35,8 +91,8 @@ export interface MatchParticipant {
   characterName: string;
   team: TeamColor;
   isWinner: boolean;
-  mainWeapon: Weapon;
-  offWeapon: Weapon;
+  mainWeapon: ClassKey;
+  offWeapon: ClassKey;
   kills: number;
   assists: number;
   damageDealt: number;
@@ -72,8 +128,8 @@ export interface Overview {
 
 export interface ClassSummary {
   id: string;
-  mainWeapon: Weapon;
-  offWeapon: Weapon;
+  mainWeapon: ClassKey;
+  offWeapon: ClassKey;
   totalMatches: number;
   winRate: number;
   avgKills: number;
@@ -119,8 +175,8 @@ export interface ApplicationMemberInput {
      * @maxLength 40
      */
   characterName: string;
-  mainWeapon: Weapon;
-  offWeapon: Weapon;
+  mainWeapon: ClassKey;
+  offWeapon: ClassKey;
 }
 
 export interface VisitorEventInput {
@@ -246,8 +302,8 @@ export interface AuditedAction {
 export interface MatchParticipantInput {
   characterName: string;
   team: TeamColor;
-  mainWeapon: Weapon;
-  offWeapon: Weapon;
+  mainWeapon: ClassKey;
+  offWeapon: ClassKey;
   /** @minimum 0 */
   kills: number;
   /** @minimum 0 */

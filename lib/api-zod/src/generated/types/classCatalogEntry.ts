@@ -7,12 +7,12 @@
  */
 import type { ClassKey } from './classKey';
 
-export interface ApplicationMemberInput {
-  /**
-     * @minLength 2
-     * @maxLength 40
-     */
-  characterName: string;
-  mainWeapon: ClassKey;
-  offWeapon: ClassKey;
+export interface ClassCatalogEntry {
+  key: ClassKey;
+  displayName: string;
+  aliases: string[];
+  active: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
 }

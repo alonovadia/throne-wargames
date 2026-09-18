@@ -176,6 +176,92 @@ paths:
                 $ref: "#/components/schemas/AdminSummary"
         "401":
           description: Admin authentication required
+  /classes:
+    get:
+      operationId: getClasses
+      tags: [public]
+      summary: List active classes available for new entries
+      responses:
+        "200":
+          description: Active class catalog
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ClassCatalogEntry"
+  /admin/classes:
+    get:
+      operationId: getAdminClasses
+      tags: [admin]
+      summary: List all class catalog entries
+      responses:
+        "200":
+          description: Complete class catalog
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ClassCatalogEntry"
+    post:
+      operationId: createClass
+      tags: [admin]
+      summary: Add a class to the catalog
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassCatalogCreate"
+      responses:
+        "201":
+          description: Class created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClassCatalogEntry"
+  /admin/classes/{classKey}:
+    patch:
+      operationId: updateClass
+      tags: [admin]
+      summary: Edit, enable, or disable a class
+      parameters:
+        - name: classKey
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassCatalogUpdate"
+      responses:
+        "200":
+          description: Class updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClassCatalogEntry"
+    delete:
+      operationId: deleteClass
+      tags: [admin]
+      summary: Permanently delete an unused disabled class
+      parameters:
+        - name: classKey
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuditedAction"
+      responses:
+        "204": { description: Class deleted }
+        "409": { description: Class is referenced by historical records }
   /admin/applications:
     get:
       operationId: getAdminApplications
@@ -366,16 +452,44 @@ components:
         status:
           type: string
       required: [status]
-    Weapon:
+    ClassKey:
       type: string
-      enum:
-        - GREATSWORD
-        - DAGGER
-        - CROSSBOW
-        - LONGBOW
-        - STAFF
-        - WAND
-        - SWORD_AND_SHIELD
+      minLength: 1
+      maxLength: 80
+      pattern: "^[A-Z0-9][A-Z0-9_-]*$"
+    ClassCatalogEntry:
+      type: object
+      properties:
+        key: { $ref: "#/components/schemas/ClassKey" }
+        displayName: { type: string }
+        aliases:
+          type: array
+          items: { type: string }
+        active: { type: boolean }
+        sortOrder: { type: integer }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [key, displayName, aliases, active, sortOrder, createdAt, updatedAt]
+    ClassCatalogCreate:
+      type: object
+      properties:
+        key: { $ref: "#/components/schemas/ClassKey" }
+        displayName: { type: string, minLength: 1, maxLength: 80 }
+        aliases: { type: array, items: { type: string }, maxItems: 20 }
+        sortOrder: { type: integer, minimum: 0, maximum: 10000 }
+        actor: { type: string, minLength: 2, maxLength: 80 }
+        reason: { type: string, minLength: 2, maxLength: 500 }
+      required: [key, displayName, aliases, actor, reason]
+    ClassCatalogUpdate:
+      type: object
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 80 }
+        aliases: { type: array, items: { type: string }, maxItems: 20 }
+        active: { type: boolean }
+        sortOrder: { type: integer, minimum: 0, maximum: 10000 }
+        actor: { type: string, minLength: 2, maxLength: 80 }
+        reason: { type: string, minLength: 2, maxLength: 500 }
+      required: [actor, reason]
     TeamColor:
       type: string
       enum: [BLUE, RED]
@@ -415,9 +529,9 @@ components:
         id:
           type: string
         mainWeapon:
-          $ref: "#/components/schemas/Weapon"
+          $ref: "#/components/schemas/ClassKey"
         offWeapon:
-          $ref: "#/components/schemas/Weapon"
+          $ref: "#/components/schemas/ClassKey"
         totalMatches:
           type: integer
         winRate:
@@ -495,9 +609,9 @@ components:
         isWinner:
           type: boolean
         mainWeapon:
-          $ref: "#/components/schemas/Weapon"
+          $ref: "#/components/schemas/ClassKey"
         offWeapon:
-          $ref: "#/components/schemas/Weapon"
+          $ref: "#/components/schemas/ClassKey"
         kills:
           type: integer
         assists:
@@ -549,9 +663,9 @@ components:
           minLength: 2
           maxLength: 40
         mainWeapon:
-          $ref: "#/components/schemas/Weapon"
+          $ref: "#/components/schemas/ClassKey"
         offWeapon:
-          $ref: "#/components/schemas/Weapon"
+          $ref: "#/components/schemas/ClassKey"
       required: [characterName, mainWeapon, offWeapon]
     VisitorEventInput:
       type: object
@@ -695,9 +809,9 @@ components:
         team:
           $ref: "#/components/schemas/TeamColor"
         mainWeapon:
-          $ref: "#/components/schemas/Weapon"
+          $ref: "#/components/schemas/ClassKey"
         offWeapon:
-          $ref: "#/components/schemas/Weapon"
+          $ref: "#/components/schemas/ClassKey"
         kills:
           type: integer
           minimum: 0

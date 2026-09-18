@@ -1,14 +1,27 @@
 import type { Request } from "express";
 
-export type Weapon =
-  | "GREATSWORD"
-  | "DAGGER"
-  | "CROSSBOW"
-  | "LONGBOW"
-  | "STAFF"
-  | "WAND"
-  | "SWORD_AND_SHIELD";
+export type Weapon = string;
 export type TeamColor = "BLUE" | "RED";
+export type ClassCatalogEntry = { key: string; displayName: string; aliases: string[]; active: boolean; sortOrder: number; createdAt: string; updatedAt: string };
+const fallbackClassSeeds: ReadonlyArray<readonly [string, string, readonly string[]]> = [
+  ["GREATSWORD", "Greatsword", ["greatsword", "great sword", "gs"]],
+  ["DAGGER", "Dagger", ["dagger", "daggers"]],
+  ["CROSSBOW", "Crossbow", ["crossbow", "cross bow", "xbow"]],
+  ["LONGBOW", "Longbow", ["longbow", "long bow", "bow"]],
+  ["SWORD_AND_SHIELD", "Sword and Shield", ["sword and shield", "sword & shield", "swordshield", "sns"]],
+  ["WAND", "Wand", ["wand"]],
+  ["STAFF", "Staff", ["staff"]],
+];
+const classCatalog: ClassCatalogEntry[] = fallbackClassSeeds.map(([key, displayName, aliases], sortOrder) => ({
+  key,
+  displayName,
+  aliases: aliases as string[],
+  active: true,
+  sortOrder,
+  createdAt: new Date(0).toISOString(),
+  updatedAt: new Date(0).toISOString(),
+}));
+export const getClasses = () => classCatalog.filter((entry) => entry.active);
 
 export type MatchParticipant = {
   playerId: string;

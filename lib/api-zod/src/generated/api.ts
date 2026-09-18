@@ -19,6 +19,16 @@ export const HealthCheckResponse = zod.object({
 /**
  * @summary Get public platform overview
  */
+export const getOverviewResponseLatestMatchOneParticipantsItemMainWeaponMax = 80;
+
+
+export const getOverviewResponseLatestMatchOneParticipantsItemMainWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+export const getOverviewResponseLatestMatchOneParticipantsItemOffWeaponMax = 80;
+
+
+export const getOverviewResponseLatestMatchOneParticipantsItemOffWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+
+
 export const GetOverviewResponse = zod.object({
   "totalMatches": zod.number().int(),
   "totalPlayers": zod.number().int(),
@@ -37,8 +47,8 @@ export const GetOverviewResponse = zod.object({
   "characterName": zod.string(),
   "team": zod.enum(['BLUE', 'RED']),
   "isWinner": zod.boolean(),
-  "mainWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD']),
-  "offWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD']),
+  "mainWeapon": zod.string().min(1).max(getOverviewResponseLatestMatchOneParticipantsItemMainWeaponMax).regex(getOverviewResponseLatestMatchOneParticipantsItemMainWeaponRegExp),
+  "offWeapon": zod.string().min(1).max(getOverviewResponseLatestMatchOneParticipantsItemOffWeaponMax).regex(getOverviewResponseLatestMatchOneParticipantsItemOffWeaponRegExp),
   "kills": zod.number().int(),
   "assists": zod.number().int(),
   "damageDealt": zod.number().int(),
@@ -56,11 +66,21 @@ export const GetOverviewResponse = zod.object({
 /**
  * @summary Get class and player leaderboards
  */
+export const getLeaderboardsResponseClassesItemMainWeaponMax = 80;
+
+
+export const getLeaderboardsResponseClassesItemMainWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+export const getLeaderboardsResponseClassesItemOffWeaponMax = 80;
+
+
+export const getLeaderboardsResponseClassesItemOffWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+
+
 export const GetLeaderboardsResponse = zod.object({
   "classes": zod.array(zod.object({
   "id": zod.string(),
-  "mainWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD']),
-  "offWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD']),
+  "mainWeapon": zod.string().min(1).max(getLeaderboardsResponseClassesItemMainWeaponMax).regex(getLeaderboardsResponseClassesItemMainWeaponRegExp),
+  "offWeapon": zod.string().min(1).max(getLeaderboardsResponseClassesItemOffWeaponMax).regex(getLeaderboardsResponseClassesItemOffWeaponRegExp),
   "totalMatches": zod.number().int(),
   "winRate": zod.number(),
   "avgKills": zod.number(),
@@ -117,6 +137,16 @@ export const GetPlayerParams = zod.object({
   "playerId": zod.coerce.string()
 })
 
+export const getPlayerResponseTwoWeaponBreakdownItemMainWeaponMax = 80;
+
+
+export const getPlayerResponseTwoWeaponBreakdownItemMainWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+export const getPlayerResponseTwoWeaponBreakdownItemOffWeaponMax = 80;
+
+
+export const getPlayerResponseTwoWeaponBreakdownItemOffWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+
+
 export const GetPlayerResponse = zod.object({
   "id": zod.string(),
   "characterName": zod.string(),
@@ -137,8 +167,8 @@ export const GetPlayerResponse = zod.object({
 })),
   "weaponBreakdown": zod.array(zod.object({
   "id": zod.string(),
-  "mainWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD']),
-  "offWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD']),
+  "mainWeapon": zod.string().min(1).max(getPlayerResponseTwoWeaponBreakdownItemMainWeaponMax).regex(getPlayerResponseTwoWeaponBreakdownItemMainWeaponRegExp),
+  "offWeapon": zod.string().min(1).max(getPlayerResponseTwoWeaponBreakdownItemOffWeaponMax).regex(getPlayerResponseTwoWeaponBreakdownItemOffWeaponRegExp),
   "totalMatches": zod.number().int(),
   "winRate": zod.number(),
   "avgKills": zod.number(),
@@ -162,6 +192,16 @@ export const GetMatchesQueryParams = zod.object({
   "limit": zod.coerce.number().int().min(1).max(getMatchesQueryLimitMax).default(getMatchesQueryLimitDefault)
 })
 
+export const getMatchesResponseParticipantsItemMainWeaponMax = 80;
+
+
+export const getMatchesResponseParticipantsItemMainWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+export const getMatchesResponseParticipantsItemOffWeaponMax = 80;
+
+
+export const getMatchesResponseParticipantsItemOffWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+
+
 export const GetMatchesResponseItem = zod.object({
   "id": zod.string(),
   "matchDate": zod.string(),
@@ -175,8 +215,8 @@ export const GetMatchesResponseItem = zod.object({
   "characterName": zod.string(),
   "team": zod.enum(['BLUE', 'RED']),
   "isWinner": zod.boolean(),
-  "mainWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD']),
-  "offWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD']),
+  "mainWeapon": zod.string().min(1).max(getMatchesResponseParticipantsItemMainWeaponMax).regex(getMatchesResponseParticipantsItemMainWeaponRegExp),
+  "offWeapon": zod.string().min(1).max(getMatchesResponseParticipantsItemOffWeaponMax).regex(getMatchesResponseParticipantsItemOffWeaponRegExp),
   "kills": zod.number().int(),
   "assists": zod.number().int(),
   "damageDealt": zod.number().int(),
@@ -227,6 +267,14 @@ export const createApplicationBodyWebsiteMax = 200;
 export const createApplicationBodyMembersItemCharacterNameMin = 2;
 export const createApplicationBodyMembersItemCharacterNameMax = 40;
 
+export const createApplicationBodyMembersItemMainWeaponMax = 80;
+
+
+export const createApplicationBodyMembersItemMainWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+export const createApplicationBodyMembersItemOffWeaponMax = 80;
+
+
+export const createApplicationBodyMembersItemOffWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
 export const createApplicationBodyMembersMin = 6;
 export const createApplicationBodyMembersMax = 6;
 
@@ -242,8 +290,8 @@ export const CreateApplicationBody = zod.object({
   "website": zod.string().max(createApplicationBodyWebsiteMax),
   "members": zod.array(zod.object({
   "characterName": zod.string().min(createApplicationBodyMembersItemCharacterNameMin).max(createApplicationBodyMembersItemCharacterNameMax),
-  "mainWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD']),
-  "offWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD'])
+  "mainWeapon": zod.string().min(1).max(createApplicationBodyMembersItemMainWeaponMax).regex(createApplicationBodyMembersItemMainWeaponRegExp),
+  "offWeapon": zod.string().min(1).max(createApplicationBodyMembersItemOffWeaponMax).regex(createApplicationBodyMembersItemOffWeaponRegExp)
 })).min(createApplicationBodyMembersMin).max(createApplicationBodyMembersMax)
 })
 
@@ -271,11 +319,180 @@ export const GetAdminSummaryResponse = zod.object({
 
 
 /**
+ * @summary List active classes available for new entries
+ */
+export const getClassesResponseKeyMax = 80;
+
+
+export const getClassesResponseKeyRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+
+
+export const GetClassesResponseItem = zod.object({
+  "key": zod.string().min(1).max(getClassesResponseKeyMax).regex(getClassesResponseKeyRegExp),
+  "displayName": zod.string(),
+  "aliases": zod.array(zod.string()),
+  "active": zod.boolean(),
+  "sortOrder": zod.number().int(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const GetClassesResponse = zod.array(GetClassesResponseItem)
+
+
+/**
+ * @summary List all class catalog entries
+ */
+export const getAdminClassesResponseKeyMax = 80;
+
+
+export const getAdminClassesResponseKeyRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+
+
+export const GetAdminClassesResponseItem = zod.object({
+  "key": zod.string().min(1).max(getAdminClassesResponseKeyMax).regex(getAdminClassesResponseKeyRegExp),
+  "displayName": zod.string(),
+  "aliases": zod.array(zod.string()),
+  "active": zod.boolean(),
+  "sortOrder": zod.number().int(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const GetAdminClassesResponse = zod.array(GetAdminClassesResponseItem)
+
+
+/**
+ * @summary Add a class to the catalog
+ */
+export const createClassBodyKeyMax = 80;
+
+
+export const createClassBodyKeyRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+export const createClassBodyDisplayNameMax = 80;
+
+export const createClassBodyAliasesMax = 20;
+
+export const createClassBodySortOrderMin = 0;
+export const createClassBodySortOrderMax = 10000;
+
+export const createClassBodyActorMin = 2;
+export const createClassBodyActorMax = 80;
+
+export const createClassBodyReasonMin = 2;
+export const createClassBodyReasonMax = 500;
+
+
+
+export const CreateClassBody = zod.object({
+  "key": zod.string().min(1).max(createClassBodyKeyMax).regex(createClassBodyKeyRegExp),
+  "displayName": zod.string().min(1).max(createClassBodyDisplayNameMax),
+  "aliases": zod.array(zod.string()).max(createClassBodyAliasesMax),
+  "sortOrder": zod.number().int().min(createClassBodySortOrderMin).max(createClassBodySortOrderMax).optional(),
+  "actor": zod.string().min(createClassBodyActorMin).max(createClassBodyActorMax),
+  "reason": zod.string().min(createClassBodyReasonMin).max(createClassBodyReasonMax)
+})
+
+export const createClassResponseKeyMax = 80;
+
+
+export const createClassResponseKeyRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+
+
+export const CreateClassResponse = zod.object({
+  "key": zod.string().min(1).max(createClassResponseKeyMax).regex(createClassResponseKeyRegExp),
+  "displayName": zod.string(),
+  "aliases": zod.array(zod.string()),
+  "active": zod.boolean(),
+  "sortOrder": zod.number().int(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Edit, enable, or disable a class
+ */
+export const UpdateClassParams = zod.object({
+  "classKey": zod.coerce.string()
+})
+
+export const updateClassBodyDisplayNameMax = 80;
+
+export const updateClassBodyAliasesMax = 20;
+
+export const updateClassBodySortOrderMin = 0;
+export const updateClassBodySortOrderMax = 10000;
+
+export const updateClassBodyActorMin = 2;
+export const updateClassBodyActorMax = 80;
+
+export const updateClassBodyReasonMin = 2;
+export const updateClassBodyReasonMax = 500;
+
+
+
+export const UpdateClassBody = zod.object({
+  "displayName": zod.string().min(1).max(updateClassBodyDisplayNameMax).optional(),
+  "aliases": zod.array(zod.string()).max(updateClassBodyAliasesMax).optional(),
+  "active": zod.boolean().optional(),
+  "sortOrder": zod.number().int().min(updateClassBodySortOrderMin).max(updateClassBodySortOrderMax).optional(),
+  "actor": zod.string().min(updateClassBodyActorMin).max(updateClassBodyActorMax),
+  "reason": zod.string().min(updateClassBodyReasonMin).max(updateClassBodyReasonMax)
+})
+
+export const updateClassResponseKeyMax = 80;
+
+
+export const updateClassResponseKeyRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+
+
+export const UpdateClassResponse = zod.object({
+  "key": zod.string().min(1).max(updateClassResponseKeyMax).regex(updateClassResponseKeyRegExp),
+  "displayName": zod.string(),
+  "aliases": zod.array(zod.string()),
+  "active": zod.boolean(),
+  "sortOrder": zod.number().int(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Permanently delete an unused disabled class
+ */
+export const DeleteClassParams = zod.object({
+  "classKey": zod.coerce.string()
+})
+
+export const deleteClassBodyActorMin = 2;
+export const deleteClassBodyActorMax = 80;
+
+export const deleteClassBodyReasonMin = 2;
+export const deleteClassBodyReasonMax = 500;
+
+
+
+export const DeleteClassBody = zod.object({
+  "actor": zod.string().min(deleteClassBodyActorMin).max(deleteClassBodyActorMax),
+  "reason": zod.string().min(deleteClassBodyReasonMin).max(deleteClassBodyReasonMax)
+})
+
+export const DeleteClassResponse = zod.void()
+
+
+/**
  * @summary List complete roster applications and their audit history
  */
 export const getAdminApplicationsResponseMembersItemOneCharacterNameMin = 2;
 export const getAdminApplicationsResponseMembersItemOneCharacterNameMax = 40;
 
+export const getAdminApplicationsResponseMembersItemOneMainWeaponMax = 80;
+
+
+export const getAdminApplicationsResponseMembersItemOneMainWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+export const getAdminApplicationsResponseMembersItemOneOffWeaponMax = 80;
+
+
+export const getAdminApplicationsResponseMembersItemOneOffWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
 
 
 export const GetAdminApplicationsResponseItem = zod.object({
@@ -288,8 +505,8 @@ export const GetAdminApplicationsResponseItem = zod.object({
   "createdAt": zod.string(),
   "members": zod.array(zod.object({
   "characterName": zod.string().min(getAdminApplicationsResponseMembersItemOneCharacterNameMin).max(getAdminApplicationsResponseMembersItemOneCharacterNameMax),
-  "mainWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD']),
-  "offWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD'])
+  "mainWeapon": zod.string().min(1).max(getAdminApplicationsResponseMembersItemOneMainWeaponMax).regex(getAdminApplicationsResponseMembersItemOneMainWeaponRegExp),
+  "offWeapon": zod.string().min(1).max(getAdminApplicationsResponseMembersItemOneOffWeaponMax).regex(getAdminApplicationsResponseMembersItemOneOffWeaponRegExp)
 }).and(zod.object({
   "playerId": zod.string()
 }))),
@@ -328,6 +545,14 @@ export const UpdateApplicationStatusBody = zod.object({
 export const updateApplicationStatusResponseMembersItemOneCharacterNameMin = 2;
 export const updateApplicationStatusResponseMembersItemOneCharacterNameMax = 40;
 
+export const updateApplicationStatusResponseMembersItemOneMainWeaponMax = 80;
+
+
+export const updateApplicationStatusResponseMembersItemOneMainWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+export const updateApplicationStatusResponseMembersItemOneOffWeaponMax = 80;
+
+
+export const updateApplicationStatusResponseMembersItemOneOffWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
 
 
 export const UpdateApplicationStatusResponse = zod.object({
@@ -340,8 +565,8 @@ export const UpdateApplicationStatusResponse = zod.object({
   "createdAt": zod.string(),
   "members": zod.array(zod.object({
   "characterName": zod.string().min(updateApplicationStatusResponseMembersItemOneCharacterNameMin).max(updateApplicationStatusResponseMembersItemOneCharacterNameMax),
-  "mainWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD']),
-  "offWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD'])
+  "mainWeapon": zod.string().min(1).max(updateApplicationStatusResponseMembersItemOneMainWeaponMax).regex(updateApplicationStatusResponseMembersItemOneMainWeaponRegExp),
+  "offWeapon": zod.string().min(1).max(updateApplicationStatusResponseMembersItemOneOffWeaponMax).regex(updateApplicationStatusResponseMembersItemOneOffWeaponRegExp)
 }).and(zod.object({
   "playerId": zod.string()
 }))),
@@ -358,6 +583,16 @@ export const UpdateApplicationStatusResponse = zod.object({
 /**
  * @summary List completed and discarded archive matches with audit history
  */
+export const getAdminMatchesResponseOneParticipantsItemMainWeaponMax = 80;
+
+
+export const getAdminMatchesResponseOneParticipantsItemMainWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+export const getAdminMatchesResponseOneParticipantsItemOffWeaponMax = 80;
+
+
+export const getAdminMatchesResponseOneParticipantsItemOffWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+
+
 export const GetAdminMatchesResponseItem = zod.object({
   "id": zod.string(),
   "matchDate": zod.string(),
@@ -371,8 +606,8 @@ export const GetAdminMatchesResponseItem = zod.object({
   "characterName": zod.string(),
   "team": zod.enum(['BLUE', 'RED']),
   "isWinner": zod.boolean(),
-  "mainWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD']),
-  "offWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD']),
+  "mainWeapon": zod.string().min(1).max(getAdminMatchesResponseOneParticipantsItemMainWeaponMax).regex(getAdminMatchesResponseOneParticipantsItemMainWeaponRegExp),
+  "offWeapon": zod.string().min(1).max(getAdminMatchesResponseOneParticipantsItemOffWeaponMax).regex(getAdminMatchesResponseOneParticipantsItemOffWeaponRegExp),
   "kills": zod.number().int(),
   "assists": zod.number().int(),
   "damageDealt": zod.number().int(),
@@ -400,6 +635,14 @@ export const commitMatchBodyActorMax = 80;
 export const commitMatchBodyScreenshotNameMax = 255;
 
 
+export const commitMatchBodyParticipantsItemMainWeaponMax = 80;
+
+
+export const commitMatchBodyParticipantsItemMainWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+export const commitMatchBodyParticipantsItemOffWeaponMax = 80;
+
+
+export const commitMatchBodyParticipantsItemOffWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
 export const commitMatchBodyParticipantsItemKillsMin = 0;
 
 export const commitMatchBodyParticipantsItemAssistsMin = 0;
@@ -426,14 +669,24 @@ export const CommitMatchBody = zod.object({
   "participants": zod.array(zod.object({
   "characterName": zod.string(),
   "team": zod.enum(['BLUE', 'RED']),
-  "mainWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD']),
-  "offWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD']),
+  "mainWeapon": zod.string().min(1).max(commitMatchBodyParticipantsItemMainWeaponMax).regex(commitMatchBodyParticipantsItemMainWeaponRegExp),
+  "offWeapon": zod.string().min(1).max(commitMatchBodyParticipantsItemOffWeaponMax).regex(commitMatchBodyParticipantsItemOffWeaponRegExp),
   "kills": zod.number().int().min(commitMatchBodyParticipantsItemKillsMin),
   "assists": zod.number().int().min(commitMatchBodyParticipantsItemAssistsMin),
   "damageDealt": zod.number().int().min(commitMatchBodyParticipantsItemDamageDealtMin),
   "healingDone": zod.number().int().min(commitMatchBodyParticipantsItemHealingDoneMin)
 })).min(commitMatchBodyParticipantsMin).max(commitMatchBodyParticipantsMax)
 })
+
+export const commitMatchResponseParticipantsItemMainWeaponMax = 80;
+
+
+export const commitMatchResponseParticipantsItemMainWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+export const commitMatchResponseParticipantsItemOffWeaponMax = 80;
+
+
+export const commitMatchResponseParticipantsItemOffWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+
 
 export const CommitMatchResponse = zod.object({
   "id": zod.string(),
@@ -448,8 +701,8 @@ export const CommitMatchResponse = zod.object({
   "characterName": zod.string(),
   "team": zod.enum(['BLUE', 'RED']),
   "isWinner": zod.boolean(),
-  "mainWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD']),
-  "offWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD']),
+  "mainWeapon": zod.string().min(1).max(commitMatchResponseParticipantsItemMainWeaponMax).regex(commitMatchResponseParticipantsItemMainWeaponRegExp),
+  "offWeapon": zod.string().min(1).max(commitMatchResponseParticipantsItemOffWeaponMax).regex(commitMatchResponseParticipantsItemOffWeaponRegExp),
   "kills": zod.number().int(),
   "assists": zod.number().int(),
   "damageDealt": zod.number().int(),
@@ -475,6 +728,14 @@ export const CorrectMatchParams = zod.object({
   "matchId": zod.coerce.string()
 })
 
+export const correctMatchBodyParticipantsItemMainWeaponMax = 80;
+
+
+export const correctMatchBodyParticipantsItemMainWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+export const correctMatchBodyParticipantsItemOffWeaponMax = 80;
+
+
+export const correctMatchBodyParticipantsItemOffWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
 export const correctMatchBodyParticipantsItemKillsMin = 0;
 
 export const correctMatchBodyParticipantsItemAssistsMin = 0;
@@ -501,8 +762,8 @@ export const CorrectMatchBody = zod.object({
   "participants": zod.array(zod.object({
   "characterName": zod.string(),
   "team": zod.enum(['BLUE', 'RED']),
-  "mainWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD']),
-  "offWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD']),
+  "mainWeapon": zod.string().min(1).max(correctMatchBodyParticipantsItemMainWeaponMax).regex(correctMatchBodyParticipantsItemMainWeaponRegExp),
+  "offWeapon": zod.string().min(1).max(correctMatchBodyParticipantsItemOffWeaponMax).regex(correctMatchBodyParticipantsItemOffWeaponRegExp),
   "kills": zod.number().int().min(correctMatchBodyParticipantsItemKillsMin),
   "assists": zod.number().int().min(correctMatchBodyParticipantsItemAssistsMin),
   "damageDealt": zod.number().int().min(correctMatchBodyParticipantsItemDamageDealtMin),
@@ -511,6 +772,16 @@ export const CorrectMatchBody = zod.object({
   "actor": zod.string().min(correctMatchBodyActorMin).max(correctMatchBodyActorMax),
   "reason": zod.string().min(correctMatchBodyReasonMin).max(correctMatchBodyReasonMax)
 })
+
+export const correctMatchResponseOneParticipantsItemMainWeaponMax = 80;
+
+
+export const correctMatchResponseOneParticipantsItemMainWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+export const correctMatchResponseOneParticipantsItemOffWeaponMax = 80;
+
+
+export const correctMatchResponseOneParticipantsItemOffWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+
 
 export const CorrectMatchResponse = zod.object({
   "id": zod.string(),
@@ -525,8 +796,8 @@ export const CorrectMatchResponse = zod.object({
   "characterName": zod.string(),
   "team": zod.enum(['BLUE', 'RED']),
   "isWinner": zod.boolean(),
-  "mainWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD']),
-  "offWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD']),
+  "mainWeapon": zod.string().min(1).max(correctMatchResponseOneParticipantsItemMainWeaponMax).regex(correctMatchResponseOneParticipantsItemMainWeaponRegExp),
+  "offWeapon": zod.string().min(1).max(correctMatchResponseOneParticipantsItemOffWeaponMax).regex(correctMatchResponseOneParticipantsItemOffWeaponRegExp),
   "kills": zod.number().int(),
   "assists": zod.number().int(),
   "damageDealt": zod.number().int(),
@@ -564,6 +835,16 @@ export const DiscardMatchBody = zod.object({
   "reason": zod.string().min(discardMatchBodyReasonMin).max(discardMatchBodyReasonMax)
 })
 
+export const discardMatchResponseOneParticipantsItemMainWeaponMax = 80;
+
+
+export const discardMatchResponseOneParticipantsItemMainWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+export const discardMatchResponseOneParticipantsItemOffWeaponMax = 80;
+
+
+export const discardMatchResponseOneParticipantsItemOffWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+
+
 export const DiscardMatchResponse = zod.object({
   "id": zod.string(),
   "matchDate": zod.string(),
@@ -577,8 +858,8 @@ export const DiscardMatchResponse = zod.object({
   "characterName": zod.string(),
   "team": zod.enum(['BLUE', 'RED']),
   "isWinner": zod.boolean(),
-  "mainWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD']),
-  "offWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD']),
+  "mainWeapon": zod.string().min(1).max(discardMatchResponseOneParticipantsItemMainWeaponMax).regex(discardMatchResponseOneParticipantsItemMainWeaponRegExp),
+  "offWeapon": zod.string().min(1).max(discardMatchResponseOneParticipantsItemOffWeaponMax).regex(discardMatchResponseOneParticipantsItemOffWeaponRegExp),
   "kills": zod.number().int(),
   "assists": zod.number().int(),
   "damageDealt": zod.number().int(),
@@ -616,6 +897,16 @@ export const RestoreMatchBody = zod.object({
   "reason": zod.string().min(restoreMatchBodyReasonMin).max(restoreMatchBodyReasonMax)
 })
 
+export const restoreMatchResponseOneParticipantsItemMainWeaponMax = 80;
+
+
+export const restoreMatchResponseOneParticipantsItemMainWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+export const restoreMatchResponseOneParticipantsItemOffWeaponMax = 80;
+
+
+export const restoreMatchResponseOneParticipantsItemOffWeaponRegExp = new RegExp('^[A-Z0-9][A-Z0-9_-]*$');
+
+
 export const RestoreMatchResponse = zod.object({
   "id": zod.string(),
   "matchDate": zod.string(),
@@ -629,8 +920,8 @@ export const RestoreMatchResponse = zod.object({
   "characterName": zod.string(),
   "team": zod.enum(['BLUE', 'RED']),
   "isWinner": zod.boolean(),
-  "mainWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD']),
-  "offWeapon": zod.enum(['GREATSWORD', 'DAGGER', 'CROSSBOW', 'LONGBOW', 'STAFF', 'WAND', 'SWORD_AND_SHIELD']),
+  "mainWeapon": zod.string().min(1).max(restoreMatchResponseOneParticipantsItemMainWeaponMax).regex(restoreMatchResponseOneParticipantsItemMainWeaponRegExp),
+  "offWeapon": zod.string().min(1).max(restoreMatchResponseOneParticipantsItemOffWeaponMax).regex(restoreMatchResponseOneParticipantsItemOffWeaponRegExp),
   "kills": zod.number().int(),
   "assists": zod.number().int(),
   "damageDealt": zod.number().int(),

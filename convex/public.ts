@@ -219,6 +219,26 @@ export const matches = query({
   handler: async (ctx, args) => loadMatches(ctx, args.limit ?? 10),
 });
 
+export const classes = query({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("classCatalog").collect();
+    if (!rows.length) return [
+      { key: "GREATSWORD", displayName: "Greatsword", aliases: ["greatsword", "great sword", "gs"], active: true, sortOrder: 0, createdAt: new Date(0).toISOString(), updatedAt: new Date(0).toISOString() },
+      { key: "DAGGER", displayName: "Dagger", aliases: ["dagger", "daggers"], active: true, sortOrder: 1, createdAt: new Date(0).toISOString(), updatedAt: new Date(0).toISOString() },
+      { key: "CROSSBOW", displayName: "Crossbow", aliases: ["crossbow", "cross bow", "xbow"], active: true, sortOrder: 2, createdAt: new Date(0).toISOString(), updatedAt: new Date(0).toISOString() },
+      { key: "LONGBOW", displayName: "Longbow", aliases: ["longbow", "long bow", "bow"], active: true, sortOrder: 3, createdAt: new Date(0).toISOString(), updatedAt: new Date(0).toISOString() },
+      { key: "SWORD_AND_SHIELD", displayName: "Sword and Shield", aliases: ["sword and shield", "sword & shield", "swordshield", "sns"], active: true, sortOrder: 4, createdAt: new Date(0).toISOString(), updatedAt: new Date(0).toISOString() },
+      { key: "WAND", displayName: "Wand", aliases: ["wand"], active: true, sortOrder: 5, createdAt: new Date(0).toISOString(), updatedAt: new Date(0).toISOString() },
+      { key: "STAFF", displayName: "Staff", aliases: ["staff"], active: true, sortOrder: 6, createdAt: new Date(0).toISOString(), updatedAt: new Date(0).toISOString() },
+    ];
+    return rows.filter((row) => row.active).sort((a, b) => a.sortOrder - b.sortOrder).map((row) => ({
+      key: row.key, displayName: row.displayName, aliases: row.aliases, active: row.active, sortOrder: row.sortOrder,
+      createdAt: new Date(row.createdAt).toISOString(), updatedAt: new Date(row.updatedAt).toISOString(),
+    }));
+  },
+});
+
 export const matchById = query({
   args: { matchId: v.id("matches") },
   handler: async (ctx, args) => {

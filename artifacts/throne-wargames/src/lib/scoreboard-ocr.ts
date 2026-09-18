@@ -1,11 +1,11 @@
 import { createWorker, type LoggerMessage } from 'tesseract.js';
-import { TeamColor, Weapon } from '@workspace/api-client-react';
+import { TeamColor } from '@workspace/api-client-react';
 
 export type VerifiedParticipant = {
   characterName: string;
   team: TeamColor;
-  mainWeapon: Weapon | null;
-  offWeapon: Weapon | null;
+  mainWeapon: string | null;
+  offWeapon: string | null;
   kills: number | null;
   assists: number | null;
   damageDealt: number | null;
@@ -20,28 +20,28 @@ export type ScoreboardExtraction = {
   rawText: string;
 };
 
-const weaponAliases: Array<[RegExp, Weapon]> = [
-  [/\b(great\s*sword|gs)\b/i, Weapon.GREATSWORD],
-  [/\b(sword\s*(and|&)\s*shield|sns|swordshield)\b/i, Weapon.SWORD_AND_SHIELD],
-  [/\b(cross\s*bow|xbow)\b/i, Weapon.CROSSBOW],
-  [/\b(long\s*bow|bow)\b/i, Weapon.LONGBOW],
-  [/\bdagger(s)?\b/i, Weapon.DAGGER],
-  [/\bstaff\b/i, Weapon.STAFF],
-  [/\bwand\b/i, Weapon.WAND],
+const weaponAliases: Array<[RegExp, string]> = [
+  [/\b(great\s*sword|gs)\b/i, 'GREATSWORD'],
+  [/\b(sword\s*(and|&)\s*shield|sns|swordshield)\b/i, 'SWORD_AND_SHIELD'],
+  [/\b(cross\s*bow|xbow)\b/i, 'CROSSBOW'],
+  [/\b(long\s*bow|bow)\b/i, 'LONGBOW'],
+  [/\bdagger(s)?\b/i, 'DAGGER'],
+  [/\bstaff\b/i, 'STAFF'],
+  [/\bwand\b/i, 'WAND'],
 ];
 
-function parseLine(line: string, index: number): VerifiedParticipant | null {
+function parseLine(line: string, index: number, aliases = weaponAliases): VerifiedParticipant | null {
   const numbers = [...line.matchAll(/\b\d[\d,.]*\b/g)].map((match) =>
     Number(match[0].replace(/[,.]/g, '')),
   );
   if (numbers.length < 4) return null;
 
-  const weapons = weaponAliases
+  const weapons = aliases
     .filter(([pattern]) => pattern.test(line))
     .map(([, weapon]) => weapon);
   const firstNumberAt = line.search(/\b\d[\d,.]*\b/);
   const nameRegion = (firstNumberAt >= 0 ? line.slice(0, firstNumberAt) : line)
-    .replace(new RegExp(weaponAliases.map(([pattern]) => pattern.source).join('|'), 'gi'), ' ')
+    .replace(new RegExp(aliases.map(([pattern]) => pattern.source).join('|'), 'gi'), ' ')
     .replace(/[|:_[\]()/\\-]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -74,6 +74,7 @@ function splitScoreboardLine(line: string) {
 export async function extractScoreboard(
   image: File,
   onProgress: (progress: number) => void,
+  classes: Array<{ key: string; aliases: string[] }> = [],
 ): Promise<ScoreboardExtraction> {
   const worker = await createWorker('eng', undefined, {
     logger: (message: LoggerMessage) => {
@@ -82,7 +83,7 @@ export async function extractScoreboard(
   });
   try {
     const result = await worker.recognize(image);
-    return parseScoreboardText(result.data.text, result.data.confidence);
+    return parseScoreboardText(result.data.text, result.data.confidence, classes);
   } finally {
     await worker.terminate();
   }
@@ -91,14 +92,18 @@ export async function extractScoreboard(
 export function parseScoreboardText(
   rawText: string,
   ocrConfidence: number,
+  classes: Array<{ key: string; aliases: string[] }> = [],
 ): ScoreboardExtraction {
+  const aliases: Array<[RegExp, string]> = classes.length
+    ? classes.flatMap((entry) => entry.aliases.length ? entry.aliases.map((alias) => [new RegExp(`\\b${alias.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\b`, 'i'), entry.key] as [RegExp, string]) : [[new RegExp(`\\b${entry.key.replaceAll('_', '[ _-]')}\\b`, 'i'), entry.key] as [RegExp, string]])
+    : weaponAliases;
   const rowsByLine = rawText
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) =>
       splitScoreboardLine(line)
-        .map((segment, segmentIndex) => parseLine(segment.trim(), segmentIndex))
+        .map((segment, segmentIndex) => parseLine(segment.trim(), segmentIndex, aliases))
         .filter((entry): entry is VerifiedParticipant => entry !== null),
     );
   const leftColumn = rowsByLine.map((rows) => rows[0]).filter(Boolean);

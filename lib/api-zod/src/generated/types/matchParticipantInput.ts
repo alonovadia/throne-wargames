@@ -5,14 +5,14 @@
  * Public read and admin write contract for Throne & Liberty Ranked Wargames.
  * OpenAPI spec version: 0.1.0
  */
+import type { ClassKey } from './classKey';
 import type { TeamColor } from './teamColor';
-import type { Weapon } from './weapon';
 
 export interface MatchParticipantInput {
   characterName: string;
   team: TeamColor;
-  mainWeapon: Weapon;
-  offWeapon: Weapon;
+  mainWeapon: ClassKey;
+  offWeapon: ClassKey;
   /** @minimum 0 */
   kills: number;
   /** @minimum 0 */

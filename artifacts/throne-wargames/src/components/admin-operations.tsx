@@ -13,9 +13,14 @@ import {
   useDiscardMatch,
   useGetAdminApplications,
   useGetAdminMatches,
+  useGetClasses,
+  useGetAdminClasses,
+  useCreateClass,
+  useUpdateClass,
+  useDeleteClass,
+  getGetAdminClassesQueryKey,
   useRestoreMatch,
   useUpdateApplicationStatus,
-  Weapon,
 } from '@workspace/api-client-react';
 import type { AdminMatch, MatchCorrection } from '@workspace/api-client-react';
 import { Check, ExternalLink, Pencil, RotateCcw, Trash2, X } from 'lucide-react';
@@ -36,6 +41,11 @@ export function AdminOperations({ adminRequest, actor }: { adminRequest: AdminRe
   const queryClient = useQueryClient();
   const applications = useGetAdminApplications({ request: adminRequest, query: { queryKey: [...getGetAdminApplicationsQueryKey(), adminRequest.headers['x-admin-key']], retry: false } });
   const matches = useGetAdminMatches({ request: adminRequest, query: { queryKey: [...getGetAdminMatchesQueryKey(), adminRequest.headers['x-admin-key']], retry: false } });
+  const classes = useGetClasses();
+  const catalog = useGetAdminClasses({ request: adminRequest, query: { queryKey: [...getGetAdminClassesQueryKey(), adminRequest.headers['x-admin-key']], retry: false } });
+  const createClass = useCreateClass({ request: adminRequest });
+  const updateClass = useUpdateClass({ request: adminRequest });
+  const deleteClass = useDeleteClass({ request: adminRequest });
   const review = useUpdateApplicationStatus({ request: adminRequest });
   const discard = useDiscardMatch({ request: adminRequest });
   const restore = useRestoreMatch({ request: adminRequest });
@@ -73,6 +83,7 @@ export function AdminOperations({ adminRequest, actor }: { adminRequest: AdminRe
 
   return (
     <div className="mt-12 space-y-12">
+      <ClassCatalog entries={catalog.data ?? []} actor={actor} onRefresh={() => void queryClient.invalidateQueries({ queryKey: getGetAdminClassesQueryKey() })} createClass={createClass} updateClass={updateClass} deleteClass={deleteClass} />
       <section>
         <div className="border-b border-border pb-4">
           <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary">Roster operations</div>
@@ -126,9 +137,41 @@ export function AdminOperations({ adminRequest, actor }: { adminRequest: AdminRe
           </div>
         ) : <p className="mt-5 text-sm text-muted-foreground">No archive matches exist yet.</p>}
       </section>
-      {editing ? <MatchEditor match={editing} actor={actor} adminRequest={adminRequest} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refresh(); }} /> : null}
+       {editing ? <MatchEditor classes={classes.data ?? []} match={editing} actor={actor} adminRequest={adminRequest} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refresh(); }} /> : null}
     </div>
   );
+}
+
+function ClassCatalog({ entries, actor, onRefresh, createClass, updateClass, deleteClass }: { entries: Array<{ key: string; displayName: string; aliases: string[]; active: boolean; sortOrder: number }>; actor: string; onRefresh: () => void; createClass: ReturnType<typeof useCreateClass>; updateClass: ReturnType<typeof useUpdateClass>; deleteClass: ReturnType<typeof useDeleteClass> }) {
+  const [key, setKey] = useState('');
+  const [name, setName] = useState('');
+  const [aliases, setAliases] = useState('');
+  const [error, setError] = useState('');
+  const reason = () => window.prompt('Reason for this catalog change?')?.trim() || '';
+  const add = () => {
+    const why = reason(); if (!why || !actor.trim()) return;
+    setError('');
+    createClass.mutate({ data: { key, displayName: name, aliases: aliases.split(',').map((value) => value.trim()).filter(Boolean), actor, reason: why } }, { onSuccess: () => { setKey(''); setName(''); setAliases(''); onRefresh(); }, onError: (err) => setError(err instanceof Error ? err.message : 'Catalog change failed') });
+  };
+  const toggle = (entry: typeof entries[number]) => {
+    const why = reason(); if (!why || !actor.trim()) return;
+    updateClass.mutate({ classKey: entry.key, data: { active: !entry.active, actor, reason: why } }, { onSuccess: onRefresh, onError: (err) => setError(err instanceof Error ? err.message : 'Catalog change failed') });
+  };
+  const edit = (entry: typeof entries[number]) => {
+    const displayName = window.prompt('Display name', entry.displayName)?.trim();
+    if (!displayName) return;
+    const aliasText = window.prompt('OCR aliases (comma separated)', entry.aliases.join(', '));
+    const why = reason(); if (!why || !actor.trim()) return;
+    updateClass.mutate({ classKey: entry.key, data: { displayName, aliases: (aliasText ?? '').split(',').map((value) => value.trim()).filter(Boolean), actor, reason: why } }, { onSuccess: onRefresh, onError: (err) => setError(err instanceof Error ? err.message : 'Catalog change failed') });
+  };
+  const remove = (entry: typeof entries[number]) => {
+    const why = reason(); if (!why || !window.confirm(`Permanently delete ${entry.displayName}? Historical classes cannot be deleted.`)) return;
+    deleteClass.mutate({ classKey: entry.key, data: { actor, reason: why } }, { onSuccess: onRefresh, onError: (err) => setError(err instanceof Error ? err.message : 'Catalog change failed') });
+  };
+  return <section className="border border-border bg-card p-5"><div className="border-b border-border pb-4"><div className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary">Catalog administration</div><h2 className="mt-2 font-display text-3xl font-bold">Classes for this game</h2><p className="mt-2 text-sm text-muted-foreground">Active classes appear in applications, OCR review, and match correction. Disabling preserves historical records.</p></div>
+    <div className="mt-5 grid gap-2 sm:grid-cols-[1fr_1fr_1.5fr_auto]"><input className="field-input" placeholder="KEY" value={key} onChange={(e) => setKey(e.target.value)} /><input className="field-input" placeholder="Display name" value={name} onChange={(e) => setName(e.target.value)} /><input className="field-input" placeholder="OCR aliases, comma separated" value={aliases} onChange={(e) => setAliases(e.target.value)} /><ActionButton onClick={add} disabled={!actor || !key || !name || createClass.isPending}>Add class</ActionButton></div>
+    {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}<div className="mt-5 space-y-2">{entries.map((entry) => <div key={entry.key} className="flex flex-wrap items-center justify-between gap-3 border-t border-border py-3"><div><b>{entry.displayName}</b><span className="ml-2 font-mono text-[10px] text-muted-foreground">{entry.key}</span><div className="text-xs text-muted-foreground">{entry.aliases.join(', ') || 'No OCR aliases'}</div></div><div className="flex gap-2"><span className={`px-2 py-1 font-mono text-[10px] ${entry.active ? 'text-accent' : 'text-muted-foreground'}`}>{entry.active ? 'ACTIVE' : 'DISABLED'}</span><ActionButton onClick={() => edit(entry)} disabled={!actor}>Edit</ActionButton><ActionButton onClick={() => toggle(entry)} disabled={!actor}>{entry.active ? 'Disable' : 'Enable'}</ActionButton><ActionButton onClick={() => remove(entry)} disabled={entry.active || !actor}><Trash2 size={13} /> Delete</ActionButton></div></div>)}</div>
+  </section>;
 }
 
 function AuditTrail({ records }: { records: Array<{ id: string; action: string; actor: string; reason: string; createdAt: string }> }) {
@@ -140,7 +183,7 @@ function ActionButton({ children, ...props }: React.ButtonHTMLAttributes<HTMLBut
   return <button type="button" {...props} className="inline-flex items-center gap-1 border border-primary/40 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-primary hover:text-primary-foreground disabled:opacity-40">{children}</button>;
 }
 
-function MatchEditor({ match, actor, adminRequest, onClose, onSaved }: { match: AdminMatch; actor: string; adminRequest: AdminRequest; onClose: () => void; onSaved: () => void }) {
+function MatchEditor({ classes, match, actor, adminRequest, onClose, onSaved }: { classes: Array<{ key: string; displayName: string }>; match: AdminMatch; actor: string; adminRequest: AdminRequest; onClose: () => void; onSaved: () => void }) {
   const correction = useCorrectMatch({ request: adminRequest });
   const [reason, setReason] = useState('');
   const [draft, setDraft] = useState<MatchCorrection>({
@@ -155,7 +198,7 @@ function MatchEditor({ match, actor, adminRequest, onClose, onSaved }: { match: 
   return <div className="fixed inset-0 z-50 overflow-y-auto bg-background/95 p-4 sm:p-8"><form onSubmit={submit} className="mx-auto max-w-6xl border border-primary/45 bg-card p-5">
     <div className="flex justify-between gap-4"><div><div className="field-label">Audited correction</div><h2 className="mt-2 font-display text-3xl font-bold">Correct archive match</h2></div><button type="button" onClick={onClose}><X /></button></div>
     <div className="mt-5 grid gap-3 sm:grid-cols-3"><input type="datetime-local" className="field-input" value={draft.matchDate} onChange={(e) => setDraft({ ...draft, matchDate: e.target.value })} /><select className="field-input" value={draft.winningTeam} onChange={(e) => setDraft({ ...draft, winningTeam: e.target.value as TeamColor })}><option value={TeamColor.BLUE}>Blue won</option><option value={TeamColor.RED}>Red won</option></select><input className="field-input" value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} placeholder="Match note" /></div>
-    <div className="mt-5 overflow-x-auto"><table className="min-w-[1050px] text-xs"><tbody>{draft.participants.map((row, index) => <tr key={index} className="border-t border-border"><td className="p-1"><select className="field-input" value={row.team} onChange={(e) => updateRow(index, 'team', e.target.value)}><option value={TeamColor.BLUE}>Blue</option><option value={TeamColor.RED}>Red</option></select></td><td className="p-1"><input className="field-input" value={row.characterName} onChange={(e) => updateRow(index, 'characterName', e.target.value)} /></td>{(['mainWeapon', 'offWeapon'] as const).map((key) => <td className="p-1" key={key}><select className="field-input" value={row[key]} onChange={(e) => updateRow(index, key, e.target.value)}>{Object.values(Weapon).map((weapon) => <option key={weapon} value={weapon}>{label(weapon)}</option>)}</select></td>)}{(['kills', 'assists', 'damageDealt', 'healingDone'] as const).map((key) => <td className="p-1" key={key}><input aria-label={`${key} ${index + 1}`} type="number" min="0" className="field-input w-24" value={row[key]} onChange={(e) => updateRow(index, key, Number(e.target.value))} /></td>)}</tr>)}</tbody></table></div>
+     <div className="mt-5 overflow-x-auto"><table className="min-w-[1050px] text-xs"><tbody>{draft.participants.map((row, index) => <tr key={index} className="border-t border-border"><td className="p-1"><select className="field-input" value={row.team} onChange={(e) => updateRow(index, 'team', e.target.value)}><option value={TeamColor.BLUE}>Blue</option><option value={TeamColor.RED}>Red</option></select></td><td className="p-1"><input className="field-input" value={row.characterName} onChange={(e) => updateRow(index, 'characterName', e.target.value)} /></td>{(['mainWeapon', 'offWeapon'] as const).map((key) => <td className="p-1" key={key}><select className="field-input" value={row[key]} onChange={(e) => updateRow(index, key, e.target.value)}>{classes.map((entry) => <option key={entry.key} value={entry.key}>{entry.displayName}</option>)}{!classes.some((entry) => entry.key === row[key]) ? <option value={row[key]}>{label(row[key])} (historical)</option> : null}</select></td>)}{(['kills', 'assists', 'damageDealt', 'healingDone'] as const).map((key) => <td className="p-1" key={key}><input aria-label={`${key} ${index + 1}`} type="number" min="0" className="field-input w-24" value={row[key]} onChange={(e) => updateRow(index, key, Number(e.target.value))} /></td>)}</tr>)}</tbody></table></div>
     <label className="mt-5 block"><span className="field-label">Reason for correction</span><textarea required minLength={2} maxLength={500} className="field-input mt-2 min-h-24" value={reason} onChange={(e) => setReason(e.target.value)} /></label>
     {correction.isError ? <p className="mt-3 text-sm text-destructive">Correction rejected. Check the team counts and all participant values.</p> : null}
     <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={onClose} className="border border-border px-4 py-3 text-xs font-bold uppercase">Cancel</button><button disabled={correction.isPending} className="bg-primary px-4 py-3 text-xs font-bold uppercase text-primary-foreground disabled:opacity-50">{correction.isPending ? 'Saving…' : 'Save audited correction'}</button></div>

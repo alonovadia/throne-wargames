@@ -28,6 +28,15 @@ import {
   RestoreMatchParams,
   RestoreMatchBody,
   RestoreMatchResponse,
+  GetClassesResponse,
+  GetAdminClassesResponse,
+  CreateClassBody,
+  CreateClassResponse,
+  UpdateClassParams,
+  UpdateClassBody,
+  UpdateClassResponse,
+  DeleteClassParams,
+  DeleteClassBody,
 } from "@workspace/api-zod";
 import {
   createApplication,
@@ -39,6 +48,7 @@ import {
   getPlayer,
   getPlayers,
   hasAdminAccess,
+  getClasses,
   recordVisitor,
 } from "../data/wargames";
 import { convexMutation, convexQuery, isConvexConfigured } from "../lib/convex";
@@ -119,6 +129,54 @@ router.get("/overview", async (_req, res, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+router.get("/classes", async (_req, res, next) => {
+  try {
+    const data = isConvexConfigured ? await convexQuery("public:classes") : getClasses();
+    res.json(GetClassesResponse.parse(data));
+  } catch (error) { next(error); }
+});
+
+router.get("/admin/classes", async (req, res, next) => {
+  if (!hasAdminAccess(req)) { res.status(401).json({ error: "Admin authentication required" }); return; }
+  try {
+    if (!isConvexConfigured) { res.status(503).json({ error: "Persistent class storage is not configured" }); return; }
+    const data = await convexQuery("admin:classes", privilegedConvexArgs({ includeInactive: true }));
+    res.json(GetAdminClassesResponse.parse(data));
+  } catch (error) { next(error); }
+});
+
+router.post("/admin/classes", async (req, res, next) => {
+  if (!hasAdminAccess(req)) { res.status(401).json({ error: "Admin authentication required" }); return; }
+  try {
+    const input = CreateClassBody.parse(req.body);
+    if (!isConvexConfigured) { res.status(503).json({ error: "Persistent class storage is not configured" }); return; }
+    const data = await convexMutation("admin:createClass", privilegedConvexArgs(input));
+    res.status(201).json(CreateClassResponse.parse(data));
+  } catch (error) { next(error); }
+});
+
+router.patch("/admin/classes/:classKey", async (req, res, next) => {
+  if (!hasAdminAccess(req)) { res.status(401).json({ error: "Admin authentication required" }); return; }
+  try {
+    const params = UpdateClassParams.parse(req.params);
+    const input = UpdateClassBody.parse(req.body);
+    if (!isConvexConfigured) { res.status(503).json({ error: "Persistent class storage is not configured" }); return; }
+    const data = await convexMutation("admin:updateClass", privilegedConvexArgs({ key: params.classKey, ...input }));
+    res.json(UpdateClassResponse.parse(data));
+  } catch (error) { next(error); }
+});
+
+router.delete("/admin/classes/:classKey", async (req, res, next) => {
+  if (!hasAdminAccess(req)) { res.status(401).json({ error: "Admin authentication required" }); return; }
+  try {
+    const params = DeleteClassParams.parse(req.params);
+    const input = DeleteClassBody.parse(req.body);
+    if (!isConvexConfigured) { res.status(503).json({ error: "Persistent class storage is not configured" }); return; }
+    await convexMutation("admin:deleteClass", privilegedConvexArgs({ key: params.classKey, ...input }));
+    res.status(204).end();
+  } catch (error) { next(error); }
 });
 
 router.get("/leaderboards", async (_req, res, next) => {

@@ -27,6 +27,9 @@ import type {
   ApplicationReceipt,
   ApplicationStatusUpdate,
   AuditedAction,
+  ClassCatalogCreate,
+  ClassCatalogEntry,
+  ClassCatalogUpdate,
   GetMatchesParams,
   GetPlayersParams,
   HealthStatus,
@@ -795,6 +798,426 @@ export function useGetAdminSummary<TData = Awaited<ReturnType<typeof getAdminSum
 
 
 
+
+export const getGetClassesUrl = () => {
+
+
+
+
+  return `/api/classes`
+}
+
+/**
+ * @summary List active classes available for new entries
+ */
+export const getClasses = async ( options?: Parameters<typeof customFetch>[1]): Promise<ClassCatalogEntry[]> => {
+
+  return customFetch<ClassCatalogEntry[]>(getGetClassesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetClassesQueryKey = () => {
+    return [
+    `/api/classes`
+    ] as const;
+    }
+
+
+export const getGetClassesQueryOptions = <TData = Awaited<ReturnType<typeof getClasses>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getClasses>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetClassesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getClasses>>> = ({ signal }) => getClasses({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getClasses>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetClassesQueryResult = NonNullable<Awaited<ReturnType<typeof getClasses>>>
+export type GetClassesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List active classes available for new entries
+ */
+
+export function useGetClasses<TData = Awaited<ReturnType<typeof getClasses>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getClasses>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetClassesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAdminClassesUrl = () => {
+
+
+
+
+  return `/api/admin/classes`
+}
+
+/**
+ * @summary List all class catalog entries
+ */
+export const getAdminClasses = async ( options?: Parameters<typeof customFetch>[1]): Promise<ClassCatalogEntry[]> => {
+
+  return customFetch<ClassCatalogEntry[]>(getGetAdminClassesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminClassesQueryKey = () => {
+    return [
+    `/api/admin/classes`
+    ] as const;
+    }
+
+
+export const getGetAdminClassesQueryOptions = <TData = Awaited<ReturnType<typeof getAdminClasses>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminClasses>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminClassesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminClasses>>> = ({ signal }) => getAdminClasses({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminClasses>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminClassesQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminClasses>>>
+export type GetAdminClassesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all class catalog entries
+ */
+
+export function useGetAdminClasses<TData = Awaited<ReturnType<typeof getAdminClasses>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminClasses>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminClassesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateClassUrl = () => {
+
+
+
+
+  return `/api/admin/classes`
+}
+
+/**
+ * @summary Add a class to the catalog
+ */
+export const createClass = async (classCatalogCreate: ClassCatalogCreate, options?: Parameters<typeof customFetch>[1]): Promise<ClassCatalogEntry> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ClassCatalogEntry>(getCreateClassUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(classCatalogCreate)
+  }
+);}
+
+
+
+
+
+export const getCreateClassMutationKey = () => ['createClass'] as const;
+
+export const getCreateClassMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createClass>>, TError,CreateClassMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createClass>>, TError,CreateClassMutationVariables, TContext> => {
+
+const mutationKey = getCreateClassMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createClass>>, CreateClassMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createClass(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateClassMutationResult = NonNullable<Awaited<ReturnType<typeof createClass>>>
+    export type CreateClassMutationBody = BodyType<ClassCatalogCreate>
+    export type CreateClassMutationError = ErrorType<unknown>
+    export type CreateClassMutationVariables = {data: BodyType<ClassCatalogCreate>}
+
+    /**
+ * @summary Add a class to the catalog
+ */
+export const useCreateClass = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createClass>>, TError,CreateClassMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createClass>>,
+        TError,
+        CreateClassMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateClassMutationOptions(options));
+    }
+
+export const getUpdateClassUrl = (classKey: string,) => {
+
+
+
+
+  return `/api/admin/classes/${classKey}`
+}
+
+/**
+ * @summary Edit, enable, or disable a class
+ */
+export const updateClass = async (classKey: string,
+    classCatalogUpdate: ClassCatalogUpdate, options?: Parameters<typeof customFetch>[1]): Promise<ClassCatalogEntry> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ClassCatalogEntry>(getUpdateClassUrl(classKey),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(classCatalogUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateClassMutationKey = () => ['updateClass'] as const;
+
+export const getUpdateClassMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateClass>>, TError,UpdateClassMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateClass>>, TError,UpdateClassMutationVariables, TContext> => {
+
+const mutationKey = getUpdateClassMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateClass>>, UpdateClassMutationVariables> = (props) => {
+          const {classKey,data} = props ?? {};
+
+          return  updateClass(classKey,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateClassMutationResult = NonNullable<Awaited<ReturnType<typeof updateClass>>>
+    export type UpdateClassMutationBody = BodyType<ClassCatalogUpdate>
+    export type UpdateClassMutationError = ErrorType<unknown>
+    export type UpdateClassMutationVariables = {classKey: string;data: BodyType<ClassCatalogUpdate>}
+
+    /**
+ * @summary Edit, enable, or disable a class
+ */
+export const useUpdateClass = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateClass>>, TError,UpdateClassMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateClass>>,
+        TError,
+        UpdateClassMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateClassMutationOptions(options));
+    }
+
+export const getDeleteClassUrl = (classKey: string,) => {
+
+
+
+
+  return `/api/admin/classes/${classKey}`
+}
+
+/**
+ * @summary Permanently delete an unused disabled class
+ */
+export const deleteClass = async (classKey: string,
+    auditedAction: AuditedAction, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<void>(getDeleteClassUrl(classKey),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(auditedAction)
+  }
+);}
+
+
+
+
+
+export const getDeleteClassMutationKey = () => ['deleteClass'] as const;
+
+export const getDeleteClassMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteClass>>, TError,DeleteClassMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteClass>>, TError,DeleteClassMutationVariables, TContext> => {
+
+const mutationKey = getDeleteClassMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteClass>>, DeleteClassMutationVariables> = (props) => {
+          const {classKey,data} = props ?? {};
+
+          return  deleteClass(classKey,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteClassMutationResult = NonNullable<Awaited<ReturnType<typeof deleteClass>>>
+    export type DeleteClassMutationBody = BodyType<AuditedAction>
+    export type DeleteClassMutationError = ErrorType<void>
+    export type DeleteClassMutationVariables = {classKey: string;data: BodyType<AuditedAction>}
+
+    /**
+ * @summary Permanently delete an unused disabled class
+ */
+export const useDeleteClass = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteClass>>, TError,DeleteClassMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteClass>>,
+        TError,
+        DeleteClassMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteClassMutationOptions(options));
+    }
 
 export const getGetAdminApplicationsUrl = () => {
 
