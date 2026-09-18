@@ -625,10 +625,13 @@ function validateParticipants(participants: Array<{
   damageDealt: number;
   healingDone: number;
 }>) {
-  if (participants.length !== 12) throw new Error("A completed match must contain twelve participants.");
-  if (participants.filter((row) => row.team === "BLUE").length !== 6 ||
-      participants.filter((row) => row.team === "RED").length !== 6) {
-    throw new Error("A completed match must contain six participants on each team.");
+  if (participants.length < 2 || participants.length > 96) {
+    throw new Error("A completed match must contain two teams with no more than 48 participants each.");
+  }
+  const bluePlayers = participants.filter((row) => row.team === "BLUE").length;
+  const redPlayers = participants.filter((row) => row.team === "RED").length;
+  if (bluePlayers < 1 || redPlayers < 1 || bluePlayers > 48 || redPlayers > 48) {
+    throw new Error("A completed match must contain between one and 48 participants on each team.");
   }
   const normalizedNames = participants.map((row) => row.characterName.trim().toLocaleLowerCase());
   if (new Set(normalizedNames).size !== normalizedNames.length) {

@@ -63,3 +63,14 @@ test('returns no rows when captured OCR extraction fails', async () => {
   assert.equal(extraction.participants.length, fixture.expectedRows);
   assert.equal(extraction.confidence, 0);
 });
+
+test('parses two scoreboard columns with more than six players per team', () => {
+  const rawText = Array.from({ length: 20 }, (_, index) =>
+    `Blue${index + 1} Staff Wand ${index} ${index + 1} ${index + 2} ${index + 3} Red${index + 1} Longbow Dagger ${index + 4} ${index + 5} ${index + 6} ${index + 7}`,
+  ).join('\n');
+  const extraction = parseScoreboardText(rawText, 90);
+
+  assert.equal(extraction.participants.length, 40);
+  assert.equal(extraction.participants.filter((row) => row.team === TeamColor.BLUE).length, 20);
+  assert.equal(extraction.participants.filter((row) => row.team === TeamColor.RED).length, 20);
+});

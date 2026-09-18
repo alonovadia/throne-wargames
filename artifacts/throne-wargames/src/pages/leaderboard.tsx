@@ -18,7 +18,7 @@ export default function LeaderboardPage() {
       <PageIntro
         eyebrow="Rankings / season 01"
         title={<>The names behind<br /><span className="text-primary">the numbers.</span></>}
-        detail="Public benchmarks from verified six-versus-six records. Sort the field by consistency, pressure, and the weapon pair that keeps showing up when the stakes rise."
+        detail="Public benchmarks from verified large-team records. Sort the field by consistency, pressure, and the weapon pair that keeps showing up when the stakes rise."
         action={<Link href="/players" data-testid="link-rankings-directory" className="inline-flex items-center gap-2 border border-border bg-card px-4 py-3 text-xs font-bold uppercase tracking-[0.13em] transition-colors hover:border-primary hover:text-primary">Player directory <ArrowUpRight size={15} /></Link>}
       />
       <section className="mx-auto max-w-[1440px] px-5 pb-20 lg:px-10">

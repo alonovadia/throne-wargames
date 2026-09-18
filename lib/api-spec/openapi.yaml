@@ -854,8 +854,8 @@ components:
           required: [name, contentType, base64]
         participants:
           type: array
-          minItems: 12
-          maxItems: 12
+          minItems: 2
+          maxItems: 96
           items:
             $ref: "#/components/schemas/MatchParticipantInput"
       required: [actor, winningTeam, screenshot, participants]
@@ -870,8 +870,8 @@ components:
           type: string
         participants:
           type: array
-          minItems: 12
-          maxItems: 12
+          minItems: 2
+          maxItems: 96
           items:
             $ref: "#/components/schemas/MatchParticipantInput"
         actor:

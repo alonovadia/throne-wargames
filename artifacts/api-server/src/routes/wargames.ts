@@ -150,7 +150,12 @@ router.get("/admin/classes", async (req, res, next) => {
 router.post("/admin/classes", async (req, res, next) => {
   if (!hasAdminAccess(req)) { res.status(401).json({ error: "Admin authentication required" }); return; }
   try {
-    const input = CreateClassBody.parse(req.body);
+    const parsed = CreateClassBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid class data", details: parsed.error.flatten().fieldErrors });
+      return;
+    }
+    const input = parsed.data;
     if (!isConvexConfigured) { res.status(503).json({ error: "Persistent class storage is not configured" }); return; }
     const data = await convexMutation("admin:createClass", privilegedConvexArgs(input));
     res.status(201).json(CreateClassResponse.parse(data));

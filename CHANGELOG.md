@@ -16,8 +16,12 @@ All notable changes to Throne & Liberty Wargames are documented here.
 - Added shared protection for public forms and visitor analytics against abusive write traffic.
 - Updated the Wargames landing page and shared shell with the current visual system, persistent dark mode, and a pre-paint theme restore so refreshes keep the selected appearance.
 - Renamed the primary navigation tab from “Chronicle” to “Home”.
+- Made scoreboard uploads resolution-independent, with automatic aspect-ratio-preserving scaling before OCR.
+- Expanded verified matches to support two teams of up to 48 players each while keeping signup squads at exactly six players.
+- Updated match archive, leaderboard, and player-profile language and team-size displays for large-team records.
 
 ### Fixed
 
 - Prevented unverified scoreboard rows from being accepted into archived match records.
 - Kept scoreboard uploads from being persisted when the corresponding match write fails.
+- Made class-catalog creation label and normalize class keys, explain missing operator information, and return clear validation errors instead of failing silently.

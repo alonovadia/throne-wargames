@@ -149,9 +149,22 @@ function ClassCatalog({ entries, actor, onRefresh, createClass, updateClass, del
   const [error, setError] = useState('');
   const reason = () => window.prompt('Reason for this catalog change?')?.trim() || '';
   const add = () => {
-    const why = reason(); if (!why || !actor.trim()) return;
     setError('');
-    createClass.mutate({ data: { key, displayName: name, aliases: aliases.split(',').map((value) => value.trim()).filter(Boolean), actor, reason: why } }, { onSuccess: () => { setKey(''); setName(''); setAliases(''); onRefresh(); }, onError: (err) => setError(err instanceof Error ? err.message : 'Catalog change failed') });
+    if (actor.trim().length < 2) {
+      setError('Enter your operator name above before changing the class catalog.');
+      return;
+    }
+    if (!name.trim()) {
+      setError('Enter the class display name.');
+      return;
+    }
+    if (!/^[A-Z0-9][A-Z0-9_-]*$/.test(key)) {
+      setError('Enter a class key using uppercase letters, numbers, underscores, or hyphens.');
+      return;
+    }
+    const why = reason();
+    if (!why) return;
+    createClass.mutate({ data: { key, displayName: name.trim(), aliases: aliases.split(',').map((value) => value.trim()).filter(Boolean), actor: actor.trim(), reason: why } }, { onSuccess: () => { setKey(''); setName(''); setAliases(''); onRefresh(); }, onError: (err) => setError(err instanceof Error ? err.message : 'Catalog change failed') });
   };
   const toggle = (entry: typeof entries[number]) => {
     const why = reason(); if (!why || !actor.trim()) return;
@@ -169,7 +182,13 @@ function ClassCatalog({ entries, actor, onRefresh, createClass, updateClass, del
     deleteClass.mutate({ classKey: entry.key, data: { actor, reason: why } }, { onSuccess: onRefresh, onError: (err) => setError(err instanceof Error ? err.message : 'Catalog change failed') });
   };
   return <section className="border border-border bg-card p-5"><div className="border-b border-border pb-4"><div className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary">Catalog administration</div><h2 className="mt-2 font-display text-3xl font-bold">Classes for this game</h2><p className="mt-2 text-sm text-muted-foreground">Active classes appear in applications, OCR review, and match correction. Disabling preserves historical records.</p></div>
-    <div className="mt-5 grid gap-2 sm:grid-cols-[1fr_1fr_1.5fr_auto]"><input className="field-input" placeholder="KEY" value={key} onChange={(e) => setKey(e.target.value)} /><input className="field-input" placeholder="Display name" value={name} onChange={(e) => setName(e.target.value)} /><input className="field-input" placeholder="OCR aliases, comma separated" value={aliases} onChange={(e) => setAliases(e.target.value)} /><ActionButton onClick={add} disabled={!actor || !key || !name || createClass.isPending}>Add class</ActionButton></div>
+    <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_1fr_1.5fr_auto]">
+      <label><span className="field-label">Display name</span><input className="field-input mt-2" placeholder="Spear" value={name} onChange={(e) => setName(e.target.value)} /></label>
+      <label><span className="field-label">Class key</span><input className="field-input mt-2 font-mono uppercase" placeholder="SPEAR" value={key} onChange={(e) => setKey(e.target.value.toUpperCase().replaceAll(' ', '_'))} /></label>
+      <label><span className="field-label">OCR aliases</span><input className="field-input mt-2" placeholder="Spear, spear, SPEAR" value={aliases} onChange={(e) => setAliases(e.target.value)} /></label>
+      <div className="flex items-end"><ActionButton onClick={add} disabled={createClass.isPending}>{createClass.isPending ? 'Adding…' : 'Add class'}</ActionButton></div>
+    </div>
+    {actor.trim().length < 2 ? <p className="mt-3 text-xs text-muted-foreground">An operator name is required for the audit record. Enter it in the field above.</p> : null}
     {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}<div className="mt-5 space-y-2">{entries.map((entry) => <div key={entry.key} className="flex flex-wrap items-center justify-between gap-3 border-t border-border py-3"><div><b>{entry.displayName}</b><span className="ml-2 font-mono text-[10px] text-muted-foreground">{entry.key}</span><div className="text-xs text-muted-foreground">{entry.aliases.join(', ') || 'No OCR aliases'}</div></div><div className="flex gap-2"><span className={`px-2 py-1 font-mono text-[10px] ${entry.active ? 'text-accent' : 'text-muted-foreground'}`}>{entry.active ? 'ACTIVE' : 'DISABLED'}</span><ActionButton onClick={() => edit(entry)} disabled={!actor}>Edit</ActionButton><ActionButton onClick={() => toggle(entry)} disabled={!actor}>{entry.active ? 'Disable' : 'Enable'}</ActionButton><ActionButton onClick={() => remove(entry)} disabled={entry.active || !actor}><Trash2 size={13} /> Delete</ActionButton></div></div>)}</div>
   </section>;
 }

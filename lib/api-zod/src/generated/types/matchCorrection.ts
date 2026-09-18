@@ -13,8 +13,8 @@ export interface MatchCorrection {
   winningTeam: TeamColor;
   note: string;
   /**
-     * @minItems 12
-     * @maxItems 12
+     * @minItems 2
+     * @maxItems 96
      */
   participants: MatchParticipantInput[];
   /**

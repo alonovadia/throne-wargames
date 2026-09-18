@@ -20,7 +20,7 @@ export default function HomePage() {
               Every clash<br /><span className="text-primary">leaves a mark.</span>
             </h1>
             <p className="mt-8 max-w-lg text-base leading-7 text-slate-300 sm:text-lg">
-              Throne &amp; Liberty&apos;s ranked wargames, held in public. Verified six-versus-six records, weapon benchmarks, and the players who turn a formation into a story.
+              Throne &amp; Liberty&apos;s ranked wargames, held in public. Verified large-team records, weapon benchmarks, and the players who turn a formation into a story.
             </p>
             <div className="mt-10 flex flex-wrap items-center gap-3">
               <Link href="/matches" data-testid="link-hero-matches" className="group inline-flex items-center gap-3 bg-primary px-5 py-3 text-xs font-bold uppercase tracking-[0.13em] text-primary-foreground transition-transform hover:-translate-y-1">

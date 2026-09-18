@@ -15,8 +15,6 @@ import {
   type VerifiedParticipant,
 } from '@/lib/scoreboard-ocr';
 
-const supportedDimensions = new Set(['1920x1080', '2560x1440']);
-
 const weaponLabel = (weapon: string) =>
   weapon.toLowerCase().replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 
@@ -39,6 +37,7 @@ export function ScoreboardVerifier({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const [error, setError] = useState('');
   const [progress, setProgress] = useState(0);
@@ -57,18 +56,16 @@ export function ScoreboardVerifier({
     setError('');
     setParticipants([]);
     setConfidence(null);
+    setImageDimensions(null);
     if (!selected) return;
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(selected.type)) {
       setError('Use a PNG, JPEG, or WebP scoreboard screenshot.');
       return;
     }
     const dimensions = await readImageDimensions(selected);
-    if (!supportedDimensions.has(`${dimensions.width}x${dimensions.height}`)) {
-      setError(`Screenshot is ${dimensions.width}×${dimensions.height}. Upload 1920×1080 or 2560×1440.`);
-      return;
-    }
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setFile(selected);
+    setImageDimensions(dimensions);
     setPreviewUrl(URL.createObjectURL(selected));
   };
 
@@ -117,8 +114,8 @@ export function ScoreboardVerifier({
       setError('Every row needs a character name before commit.');
       return;
     }
-    if (participants.length !== 12) {
-      setError(`OCR found ${participants.length} rows. A verified match requires exactly 12.`);
+    if (participants.length < 2 || participants.length > 96) {
+      setError(`OCR found ${participants.length} rows. A verified match requires two teams with no more than 48 players each.`);
       return;
     }
     if (participants.some((participant) => participant.mainWeapon === null || participant.offWeapon === null)) {
@@ -139,11 +136,10 @@ export function ScoreboardVerifier({
       setError('Each participant must appear exactly once.');
       return;
     }
-    if (
-      participants.filter((participant) => participant.team === TeamColor.BLUE).length !== 6 ||
-      participants.filter((participant) => participant.team === TeamColor.RED).length !== 6
-    ) {
-      setError('Assign exactly six participants to each team.');
+    const bluePlayers = participants.filter((participant) => participant.team === TeamColor.BLUE).length;
+    const redPlayers = participants.filter((participant) => participant.team === TeamColor.RED).length;
+    if (bluePlayers < 1 || redPlayers < 1 || bluePlayers > 48 || redPlayers > 48) {
+      setError('Assign between 1 and 48 participants to each team.');
       return;
     }
     if (participants.some((participant) => !participant.confirmed)) {
@@ -196,7 +192,7 @@ export function ScoreboardVerifier({
             <ImageUp className="text-primary" />
             <span className="mt-4 text-sm font-bold">{file ? file.name : 'Choose scoreboard screenshot'}</span>
             <span className="mt-2 font-mono text-[9px] uppercase tracking-[0.13em] text-muted-foreground">
-              PNG, JPEG, or WebP · 1920×1080 or 2560×1440
+              PNG, JPEG, or WebP · any screenshot size
             </span>
           </button>
           <input
@@ -208,6 +204,7 @@ export function ScoreboardVerifier({
             data-testid="input-scoreboard-file"
           />
           {previewUrl ? <img src={previewUrl} alt="Scoreboard awaiting OCR" className="mt-3 w-full border border-border" /> : null}
+          {imageDimensions ? <p className="mt-2 text-xs text-muted-foreground">{imageDimensions.width}×{imageDimensions.height} accepted. OCR will scale it automatically while preserving its aspect ratio.</p> : null}
           <button
             type="button"
             disabled={!file || extracting}
@@ -234,7 +231,7 @@ export function ScoreboardVerifier({
             ) : null}
           </div>
           <p className="mt-5 text-xs leading-6 text-muted-foreground">
-             OCR is a draft. Check every field against the screenshot, then confirm each row. Editing a row clears its confirmation.
+             OCR is a draft for two teams of up to 48 players each. Check every field against the screenshot, then confirm each row. Editing a row clears its confirmation.
           </p>
         </div>
       </div>
@@ -290,7 +287,7 @@ export function ScoreboardVerifier({
           </div>
           {error || commitMutation.isError ? <div className="mt-5 border border-destructive/35 bg-destructive/5 p-3 text-sm text-muted-foreground">{error || 'Commit rejected. Confirm every field and operator authorization.'}</div> : null}
           <div className="mt-7 flex justify-end">
-            <button type="submit" disabled={commitMutation.isPending || actor.trim().length < 2 || participants.length !== 12 || participants.some((participant) => !participant.confirmed)} className="inline-flex items-center gap-2 bg-primary px-5 py-3 text-xs font-bold uppercase tracking-[0.13em] text-primary-foreground disabled:opacity-60" data-testid="button-commit-match">
+            <button type="submit" disabled={commitMutation.isPending || actor.trim().length < 2 || participants.length < 2 || participants.length > 96 || participants.some((participant) => !participant.confirmed)} className="inline-flex items-center gap-2 bg-primary px-5 py-3 text-xs font-bold uppercase tracking-[0.13em] text-primary-foreground disabled:opacity-60" data-testid="button-commit-match">
               {commitMutation.isPending ? 'Writing...' : 'Commit verified result'} <CheckCircle2 size={15} />
             </button>
           </div>

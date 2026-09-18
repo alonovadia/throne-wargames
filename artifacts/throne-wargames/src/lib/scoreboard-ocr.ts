@@ -20,6 +20,9 @@ export type ScoreboardExtraction = {
   rawText: string;
 };
 
+const minimumOcrEdge = 1920;
+const maximumOcrEdge = 3200;
+
 const weaponAliases: Array<[RegExp, string]> = [
   [/\b(great\s*sword|gs)\b/i, 'GREATSWORD'],
   [/\b(sword\s*(and|&)\s*shield|sns|swordshield)\b/i, 'SWORD_AND_SHIELD'],
@@ -30,7 +33,7 @@ const weaponAliases: Array<[RegExp, string]> = [
   [/\bwand\b/i, 'WAND'],
 ];
 
-function parseLine(line: string, index: number, aliases = weaponAliases): VerifiedParticipant | null {
+function parseLine(line: string, columnIndex: number, aliases = weaponAliases): VerifiedParticipant | null {
   const numbers = [...line.matchAll(/\b\d[\d,.]*\b/g)].map((match) =>
     Number(match[0].replace(/[,.]/g, '')),
   );
@@ -52,7 +55,7 @@ function parseLine(line: string, index: number, aliases = weaponAliases): Verifi
   const detectedFields = 5 + Math.min(weapons.length, 2);
   return {
     characterName,
-    team: index < 6 ? TeamColor.BLUE : TeamColor.RED,
+    team: columnIndex === 0 ? TeamColor.BLUE : TeamColor.RED,
     mainWeapon: weapons[0] ?? null,
     offWeapon: weapons[1] ?? null,
     kills: stats[0] ?? null,
@@ -82,10 +85,45 @@ export async function extractScoreboard(
     },
   });
   try {
-    const result = await worker.recognize(image);
+    const preparedImage = await prepareImageForOcr(image);
+    const result = await worker.recognize(preparedImage);
     return parseScoreboardText(result.data.text, result.data.confidence, classes);
   } finally {
     await worker.terminate();
+  }
+}
+
+async function prepareImageForOcr(file: File): Promise<File | Blob> {
+  const url = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    const longestEdge = Math.max(image.naturalWidth, image.naturalHeight);
+    const scale = longestEdge < minimumOcrEdge
+      ? minimumOcrEdge / longestEdge
+      : longestEdge > maximumOcrEdge
+        ? maximumOcrEdge / longestEdge
+        : 1;
+    if (scale === 1) return file;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('The scoreboard image could not be prepared for OCR.');
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => blob ? resolve(blob) : reject(new Error('The scoreboard image could not be prepared for OCR.')),
+        'image/png',
+      );
+    });
+  } finally {
+    URL.revokeObjectURL(url);
   }
 }
 
@@ -108,14 +146,15 @@ export function parseScoreboardText(
     );
   const leftColumn = rowsByLine.map((rows) => rows[0]).filter(Boolean);
   const rightColumn = rowsByLine.map((rows) => rows[1]).filter(Boolean);
-  const parsed =
-    rightColumn.length > 0
-      ? [...leftColumn.slice(0, 6), ...rightColumn.slice(0, 6)]
-      : leftColumn.slice(0, 12);
-  const participants = parsed.map((entry, index) => ({
-    ...entry,
-    team: index < 6 ? TeamColor.BLUE : TeamColor.RED,
-  }));
+  const participants = rightColumn.length > 0
+    ? [
+        ...leftColumn.slice(0, 48).map((entry) => ({ ...entry, team: TeamColor.BLUE })),
+        ...rightColumn.slice(0, 48).map((entry) => ({ ...entry, team: TeamColor.RED })),
+      ]
+    : leftColumn.slice(0, 96).map((entry, index, rows) => ({
+        ...entry,
+        team: index < Math.ceil(rows.length / 2) ? TeamColor.BLUE : TeamColor.RED,
+      }));
   const fieldConfidence =
     participants.length > 0
       ? participants.reduce((sum, participant) => sum + participant.confidence, 0) /

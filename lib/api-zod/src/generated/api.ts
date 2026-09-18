@@ -651,8 +651,8 @@ export const commitMatchBodyParticipantsItemDamageDealtMin = 0;
 
 export const commitMatchBodyParticipantsItemHealingDoneMin = 0;
 
-export const commitMatchBodyParticipantsMin = 12;
-export const commitMatchBodyParticipantsMax = 12;
+export const commitMatchBodyParticipantsMin = 2;
+export const commitMatchBodyParticipantsMax = 96;
 
 
 
@@ -744,8 +744,8 @@ export const correctMatchBodyParticipantsItemDamageDealtMin = 0;
 
 export const correctMatchBodyParticipantsItemHealingDoneMin = 0;
 
-export const correctMatchBodyParticipantsMin = 12;
-export const correctMatchBodyParticipantsMax = 12;
+export const correctMatchBodyParticipantsMin = 2;
+export const correctMatchBodyParticipantsMax = 96;
 
 export const correctMatchBodyActorMin = 2;
 export const correctMatchBodyActorMax = 80;

@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronUp, Clock3, ExternalLink, ShieldCheck, Swords } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'wouter';
-import { useGetMatches } from '@workspace/api-client-react';
+import { TeamColor, useGetMatches } from '@workspace/api-client-react';
 import { EmptyState, ErrorState, formatDate, formatWeapon, PageIntro, SkeletonRows } from '@/components/wargames-shell';
 
 async function openScoreboard(matchId: string, adminKey: string) {
@@ -22,7 +22,7 @@ export default function MatchesPage() {
 
   return (
     <div>
-      <PageIntro eyebrow="Match archive / verified" title={<>The fights<br /><span className="text-primary">that stayed.</span></>} detail="A chronological record of completed six-versus-six wargames. Open any result to inspect the participants, weapon pairs, and the detail beneath the score." action={<div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground"><ShieldCheck size={15} className="text-primary" /> operator verified</div>} />
+      <PageIntro eyebrow="Match archive / verified" title={<>The fights<br /><span className="text-primary">that stayed.</span></>} detail="A chronological record of completed two-team wargames with up to 48 players per side. Open any result to inspect the participants, weapon pairs, and the detail beneath the score." action={<div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground"><ShieldCheck size={15} className="text-primary" /> operator verified</div>} />
       <section className="mx-auto max-w-[1440px] px-5 pb-20 lg:px-10">
         {query.isError ? <ErrorState message="The match archive could not be reached." /> : query.isLoading ? <SkeletonRows count={7} /> : matches.length ? (
           <div className="space-y-3">
@@ -34,7 +34,7 @@ export default function MatchesPage() {
                     <span className="font-display text-xl font-bold text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>
                     <div><div className="flex items-center gap-2 font-display text-xl font-bold">{match.winningTeam === 'BLUE' ? 'Blue' : 'Red'} victory <span className="inline-flex items-center gap-1 font-mono text-[9px] font-normal uppercase tracking-[0.1em] text-primary"><ShieldCheck size={11} /> verified</span></div><div className="mt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{formatDate(match.matchDate)}</div></div>
                     <div className="hidden text-right font-mono text-xs text-muted-foreground md:block"><span className="text-accent">{match.blueScore}</span> <span className="px-1">:</span> <span className="text-primary">{match.redScore}</span></div>
-                    <div className="hidden items-center gap-1 text-xs text-muted-foreground md:flex"><Clock3 size={13} /> {match.participants.length / 2}v{match.participants.length / 2}</div>
+                    <div className="hidden items-center gap-1 text-xs text-muted-foreground md:flex"><Clock3 size={13} /> {match.participants.filter((participant) => participant.team === TeamColor.BLUE).length}v{match.participants.filter((participant) => participant.team === TeamColor.RED).length}</div>
                     <div className="hidden font-mono text-[10px] uppercase text-muted-foreground md:block">{match.participants.length} players</div>
                     <span className="text-muted-foreground">{isOpen ? <ChevronUp size={17} /> : <ChevronDown size={17} />}</span>
                   </button>

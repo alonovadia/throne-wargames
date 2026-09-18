@@ -18,7 +18,7 @@ export default function PlayerProfilePage() {
 
   return (
     <div>
-      <PageIntro eyebrow={`Player dossier / ${player.archetype}`} title={<>{player.characterName}<br /><span className="text-primary">{player.form || 'in form'}.</span></>} detail="A public performance profile assembled from verified six-versus-six records. Numbers are averages unless marked otherwise." action={<Link href="/players" data-testid="link-back-players" className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.13em] text-muted-foreground transition-colors hover:text-primary"><ArrowLeft size={15} /> All players</Link>} />
+      <PageIntro eyebrow={`Player dossier / ${player.archetype}`} title={<>{player.characterName}<br /><span className="text-primary">{player.form || 'in form'}.</span></>} detail="A public performance profile assembled from verified large-team records. Numbers are averages unless marked otherwise." action={<Link href="/players" data-testid="link-back-players" className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.13em] text-muted-foreground transition-colors hover:text-primary"><ArrowLeft size={15} /> All players</Link>} />
       <section className="mx-auto max-w-[1440px] px-5 pb-20 lg:px-10">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard label="Win rate" value={`${player.winRate.toFixed(1)}%`} detail={`${player.wins} wins / ${player.matches} matches`} accent />
