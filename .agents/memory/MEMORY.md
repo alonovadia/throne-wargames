@@ -5,3 +5,4 @@
 - [Convex development sync permissions](convex-development-sync.md) — the workspace deploy key can fail function sync because it lacks deployment log-view permission.
 - [GitHub write access](github-write-access.md) — use the configured GitHub integration for repository writes when the HTTPS remote has no usable credential.
 - [Team size rules](team-size-rules.md) — signup squads are six players, while match scoreboards contain two larger teams of up to 48 players each.
+- [Scoreboard OCR reliability](ocr-reliability.md) — preserve incomplete rows and surface uncertainty instead of silently defaulting questionable OCR values.
