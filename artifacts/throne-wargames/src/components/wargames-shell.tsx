@@ -1,9 +1,10 @@
 import { Link, useLocation } from 'wouter';
-import { ArrowUpRight, ChevronRight, LockKeyhole, Swords } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { ArrowUpRight, ChevronRight, LockKeyhole, Moon, Sun, Swords } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { applyTheme, getInitialTheme, type Theme } from '@/lib/theme';
 
 const navItems = [
-  { href: '/', label: 'Chronicle' },
+  { href: '/', label: 'Home' },
   { href: '/leaderboard', label: 'Rankings' },
   { href: '/players', label: 'Players' },
   { href: '/matches', label: 'Match archive' },
@@ -11,6 +12,14 @@ const navItems = [
 
 export function WargamesShell({ children }: { children: ReactNode }) {
   const [location] = useLocation();
+  const [theme, setTheme] = useState<Theme>(() => getInitialTheme());
+
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme((current) => (current === 'dark' ? 'light' : 'dark'));
+
   return (
     <div className="min-h-[100dvh] bg-background text-foreground">
       <header className="sticky top-0 z-40 border-b border-border/80 bg-background/92 backdrop-blur-xl">
@@ -42,6 +51,17 @@ export function WargamesShell({ children }: { children: ReactNode }) {
               Enter your six
               <ArrowUpRight size={14} />
             </Link>
+            <button
+              type="button"
+              onClick={toggleTheme}
+              data-testid="button-theme-toggle"
+              className="grid size-9 place-items-center border border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-pressed={theme === 'dark'}
+            >
+              {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+            </button>
             <Link href="/admin" data-testid="link-admin-top" className="grid size-9 place-items-center border border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary" aria-label="Operations access">
               <LockKeyhole size={15} />
             </Link>
