@@ -107,6 +107,7 @@ export function ScoreboardVerifier({
 
   const addParticipantRow = () => {
     setParticipants(current => [...current, {
+      rank: null,
       characterName: '',
       team: TeamColor.BLUE,
       mainWeapon: null,
@@ -222,6 +223,7 @@ export function ScoreboardVerifier({
         base64: await fileToBase64(file),
       },
       participants: participants.map(({
+        rank: _rank,
         confidence: _confidence,
         confirmed: _confirmed,
         fieldConfidence: _fieldConfidence,

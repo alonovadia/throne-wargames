@@ -12,6 +12,7 @@ import {
 } from './scoreboard-ocr-core';
 
 export type ParticipantField =
+  | 'rank'
   | 'characterName'
   | 'team'
   | 'kills'
@@ -21,6 +22,7 @@ export type ParticipantField =
   | 'healingDone';
 
 export type VerifiedParticipant = {
+  rank: number | null;
   characterName: string;
   team: TeamColor | null;
   mainWeapon: string | null;
@@ -116,6 +118,7 @@ function parseLine(line: string, columnIndex: number, aliases = weaponAliases): 
 
   const detectedFields = 5 + Math.min(weapons.length, 2);
   return {
+    rank: null,
     characterName,
     team,
     mainWeapon: weapons[0] ?? null,
@@ -275,6 +278,8 @@ export async function extractScoreboard(
       for (const anchor of rowAnchors) {
         const nameCell = cellAtRow('name', anchor.y);
         const characterName = (nameCell?.text ?? '').replace(/\s+/g, ' ').trim();
+        const rankCell = cellAtRow('rank', anchor.y);
+        const rankResult = cleanNumericCell(rankCell?.text ?? '');
 
         const teamCell = cellAtRow('team', anchor.y);
         const textTeam = detectTeamFromText(teamCell?.text ?? '');
@@ -286,6 +291,7 @@ export async function extractScoreboard(
           cleanNumericCell(cellAtRow(field, anchor.y)?.text ?? ''),
         ])) as Record<(typeof numericFields)[number], ReturnType<typeof cleanNumericCell>>;
         const fieldConfidence: VerifiedParticipant['fieldConfidence'] = {
+          rank: Math.round(rankCell?.confidence ?? 0),
           characterName: Math.round(nameCell?.confidence ?? 0),
           team: teamDetection.confidence,
         };
@@ -310,6 +316,7 @@ export async function extractScoreboard(
           Object.values(fieldConfidence).reduce((sum, value) => sum + (value ?? 0), 0) / 7,
         );
         participants.push({
+          rank: rankResult.value,
           characterName,
           team: teamDetection.team,
           mainWeapon: null,
