@@ -7,6 +7,7 @@ import { useCreateApplication, useGetClasses } from '@workspace/api-client-react
 import type { ApplicationInput } from '@workspace/api-client-react';
 import { PageIntro } from '@/components/wargames-shell';
 import { Form } from '@/components/ui/form';
+import { trackEvent } from '@/lib/analytics';
 
 const weaponSchema = z.string().min(1, 'Select a class');
 const memberSchema = z.object({
@@ -58,6 +59,10 @@ export default function ApplyPage() {
       formStartedAt: formStartedAt.current,
     } as ApplicationInput }, {
       onSuccess: (result) => {
+        trackEvent('roster_application_submitted', {
+          member_count: values.members.length,
+          completed_members: completedMembers,
+        });
         setReceipt({ id: result.id, message: result.message });
         form.reset();
         formStartedAt.current = Date.now();

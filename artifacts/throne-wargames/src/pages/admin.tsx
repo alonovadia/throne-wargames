@@ -4,6 +4,7 @@ import { useGetAdminSummary, getGetAdminSummaryQueryKey } from '@workspace/api-c
 import { ErrorState, PageIntro } from '@/components/wargames-shell';
 import { ScoreboardVerifier } from '@/components/scoreboard-verifier';
 import { AdminOperations } from '@/components/admin-operations';
+import { trackEvent } from '@/lib/analytics';
 
 async function openScoreboard(matchId: string, adminKey: string) {
   const response = await fetch(`/api/admin/matches/${encodeURIComponent(matchId)}/scoreboard`, {
@@ -12,6 +13,7 @@ async function openScoreboard(matchId: string, adminKey: string) {
   if (!response.ok) throw new Error('The source scoreboard could not be opened.');
   const blobUrl = URL.createObjectURL(await response.blob());
   window.open(blobUrl, '_blank', 'noopener,noreferrer');
+  trackEvent('source_scoreboard_opened', { surface: 'admin_archive' });
   window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
 }
 
@@ -98,7 +100,19 @@ export default function AdminPage() {
             </div>
             {showCommit ? <div className="mt-8 border border-primary/45 bg-card p-6 sm:p-8" data-testid="panel-commit-match">
               <div className="flex flex-col justify-between gap-3 border-b border-border pb-5 sm:flex-row sm:items-end"><div><div className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-primary">Operator action / new match</div><h2 className="mt-3 font-display text-3xl font-bold">Write a verified scoreline.</h2></div><button type="button" onClick={() => setShowCommit(false)} data-testid="button-close-commit" className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground hover:text-primary">Close panel</button></div>
-              <ScoreboardVerifier actor={actor} adminRequest={adminRequest as { headers: { 'x-admin-key': string } }} onCommitted={(matchId) => { setCommittedMatchId(matchId); setSubmitted(true); setShowCommit(false); }} />
+              <ScoreboardVerifier
+                actor={actor}
+                adminRequest={adminRequest as { headers: { 'x-admin-key': string } }}
+                onCommitted={(matchId, participantCount) => {
+                  trackEvent('verified_match_committed', {
+                    participant_count: participantCount,
+                    has_source_scoreboard: true,
+                  });
+                  setCommittedMatchId(matchId);
+                  setSubmitted(true);
+                  setShowCommit(false);
+                }}
+              />
             </div> : null}
             <AdminOperations actor={actor} adminRequest={adminRequest as { headers: { 'x-admin-key': string } }} />
           </>

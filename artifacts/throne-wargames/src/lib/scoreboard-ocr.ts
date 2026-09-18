@@ -10,6 +10,10 @@ import {
   type OcrFieldKey,
   type TeamDetection,
 } from './scoreboard-ocr-core';
+import {
+  createIconSignature,
+  type IconSignature,
+} from './weapon-icon-recognition';
 
 export type ParticipantField =
   | 'rank'
@@ -43,6 +47,7 @@ export type ScoreboardExtraction = {
   confidence: number;
   rawText: string;
   preprocessing: 'original' | 'contrast' | 'threshold';
+  weaponEvidence: Array<{ main: IconSignature; off: IconSignature } | null>;
 };
 
 export type ColumnBoundary = {
@@ -205,6 +210,35 @@ export async function extractScoreboard(
       return pixels;
     };
 
+    const extractWeaponEvidence = (rowY: number, rowRadius: number) => {
+      const weaponBoundary = boundaries.find((boundary) => boundary.key === 'weapons');
+      if (!weaponBoundary) return null;
+      const x = Math.round((weaponBoundary.start / 100) * scaledWidth);
+      const width = Math.max(2, Math.round(((weaponBoundary.end - weaponBoundary.start) / 100) * scaledWidth));
+      const y = Math.max(0, Math.round(rowY - rowRadius));
+      const height = Math.max(1, Math.min(scaledHeight - y, Math.round(rowRadius * 2)));
+      const imageData = sourceContext.getImageData(x, y, width, height);
+      const halfWidth = Math.max(1, Math.floor(width / 2));
+      const mainPixels: number[] = [];
+      const offPixels: number[] = [];
+      for (let pixelY = 0; pixelY < height; pixelY += 1) {
+        for (let pixelX = 0; pixelX < width; pixelX += 1) {
+          const sourceIndex = (pixelY * width + pixelX) * 4;
+          const destination = pixelX < halfWidth ? mainPixels : offPixels;
+          destination.push(
+            imageData.data[sourceIndex],
+            imageData.data[sourceIndex + 1],
+            imageData.data[sourceIndex + 2],
+            imageData.data[sourceIndex + 3],
+          );
+        }
+      }
+      return {
+        main: createIconSignature(mainPixels, halfWidth, height),
+        off: createIconSignature(offPixels, width - halfWidth, height),
+      };
+    };
+
     const candidates: ScoreboardExtraction[] = [];
     for (const [passIndex, mode] of preprocessingModes.entries()) {
       activePass = passIndex;
@@ -275,6 +309,7 @@ export async function extractScoreboard(
       };
 
       const participants: VerifiedParticipant[] = [];
+      const weaponEvidence: Array<{ main: IconSignature; off: IconSignature } | null> = [];
       for (const anchor of rowAnchors) {
         const nameCell = cellAtRow('name', anchor.y);
         const characterName = (nameCell?.text ?? '').replace(/\s+/g, ' ').trim();
@@ -331,6 +366,7 @@ export async function extractScoreboard(
           warnings,
           confirmed: false,
         });
+        weaponEvidence.push(extractWeaponEvidence(anchor.y, rowSpacing * 0.42));
         Object.assign(participants.at(-1)!, { _populatedFields: populatedFields });
       }
 
@@ -350,6 +386,7 @@ export async function extractScoreboard(
         confidence: Math.round((fieldConfidence + result.data.confidence) / 2),
         rawText: result.data.text,
         preprocessing: mode,
+        weaponEvidence,
         _score: scoreExtractionCandidate(candidateRows, result.data.confidence),
       } as ScoreboardExtraction & { _score: number });
     }
@@ -359,7 +396,7 @@ export async function extractScoreboard(
       ((right as ScoreboardExtraction & { _score?: number })._score ?? 0) -
       ((left as ScoreboardExtraction & { _score?: number })._score ?? 0),
     )[0];
-    if (!best) return { participants: [], confidence: 0, rawText: '', preprocessing: 'original' };
+    if (!best) return { participants: [], confidence: 0, rawText: '', preprocessing: 'original', weaponEvidence: [] };
     delete (best as ScoreboardExtraction & { _score?: number })._score;
     return best;
   } finally {
@@ -444,6 +481,7 @@ export function parseScoreboardText(
     confidence: Math.round((fieldConfidence + ocrConfidence) / 2),
     rawText,
     preprocessing: 'original',
+    weaponEvidence: [],
   };
 }
 

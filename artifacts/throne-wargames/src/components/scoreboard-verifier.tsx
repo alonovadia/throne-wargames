@@ -16,6 +16,7 @@ import {
   type ColumnBoundary,
   type VerifiedParticipant,
 } from '@/lib/scoreboard-ocr';
+import { trackEvent } from '@/lib/analytics';
 
 const weaponLabel = (weapon: string) =>
   weapon.toLowerCase().replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -35,7 +36,7 @@ export function ScoreboardVerifier({
 }: {
   adminRequest: { headers: { 'x-admin-key': string } };
   actor: string;
-  onCommitted: (matchId: string) => void;
+  onCommitted: (matchId: string, participantCount: number) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -81,6 +82,11 @@ export function ScoreboardVerifier({
     setError('');
     try {
       const result = await extractScoreboard(file, setProgress, classOptions, boundaries);
+      trackEvent('scoreboard_extracted', {
+        row_count: result.participants.length,
+        ocr_confidence: result.confidence,
+        preprocessing: result.preprocessing,
+      });
       setParticipants(result.participants);
       setConfidence(result.confidence);
       setPreprocessing(result.preprocessing);
@@ -248,7 +254,7 @@ export function ScoreboardVerifier({
         onSuccess: (match) => {
           queryClient.invalidateQueries({ queryKey: getGetAdminSummaryQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetMatchesQueryKey({ limit: 50 }) });
-          onCommitted(match.id);
+          onCommitted(match.id, participants.length);
         },
       },
     );

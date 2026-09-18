@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Link } from 'wouter';
 import { TeamColor, useGetMatches } from '@workspace/api-client-react';
 import { EmptyState, ErrorState, formatDate, formatWeapon, PageIntro, SkeletonRows } from '@/components/wargames-shell';
+import { trackEvent } from '@/lib/analytics';
 
 async function openScoreboard(matchId: string, adminKey: string) {
   const response = await fetch(`/api/admin/matches/${encodeURIComponent(matchId)}/scoreboard`, {
@@ -11,6 +12,7 @@ async function openScoreboard(matchId: string, adminKey: string) {
   if (!response.ok) throw new Error('The source scoreboard could not be opened.');
   const blobUrl = URL.createObjectURL(await response.blob());
   window.open(blobUrl, '_blank', 'noopener,noreferrer');
+  trackEvent('source_scoreboard_opened', { surface: 'match_archive' });
   window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
 }
 
@@ -33,7 +35,15 @@ export default function MatchesPage() {
               const teamLabel = (team: TeamColor) => team[0] + team.slice(1).toLowerCase();
               return (
                 <article key={match.id} data-testid={`card-match-${match.id}`} className={`border bg-card transition-colors ${isOpen ? 'border-primary/55' : 'border-border hover:border-primary/35'}`}>
-                  <button type="button" onClick={() => setOpenId(isOpen ? null : match.id)} data-testid={`button-expand-match-${match.id}`} className="grid w-full grid-cols-[34px_1fr_auto] items-center gap-4 px-5 py-5 text-left md:grid-cols-[60px_1.2fr_0.8fr_0.55fr_0.55fr_40px]">
+                   <button type="button" onClick={() => {
+                     setOpenId(isOpen ? null : match.id);
+                     if (!isOpen) {
+                       trackEvent('match_details_expanded', {
+                         participant_count: match.participants.length,
+                         winning_team: match.winningTeam,
+                       });
+                     }
+                   }} data-testid={`button-expand-match-${match.id}`} className="grid w-full grid-cols-[34px_1fr_auto] items-center gap-4 px-5 py-5 text-left md:grid-cols-[60px_1.2fr_0.8fr_0.55fr_0.55fr_40px]">
                     <span className="font-display text-xl font-bold text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>
                      <div><div className="flex items-center gap-2 font-display text-xl font-bold">{teamLabel(match.winningTeam)} victory <span className="inline-flex items-center gap-1 font-mono text-[9px] font-normal uppercase tracking-[0.1em] text-primary"><ShieldCheck size={11} /> verified</span></div><div className="mt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{formatDate(match.matchDate)}</div></div>
                      <div className="hidden text-right font-mono text-xs text-muted-foreground md:block">{teams.map((team, teamIndex) => <span key={team}>{teamIndex ? <span className="px-1">:</span> : null}{scoreFor(team)}</span>)}</div>
