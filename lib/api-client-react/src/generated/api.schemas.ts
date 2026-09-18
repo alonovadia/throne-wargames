@@ -84,6 +84,7 @@ export type TeamColor = typeof TeamColor[keyof typeof TeamColor];
 export const TeamColor = {
   BLUE: 'BLUE',
   RED: 'RED',
+  YELLOW: 'YELLOW',
 } as const;
 
 export interface MatchParticipant {
@@ -96,6 +97,7 @@ export interface MatchParticipant {
   kills: number;
   assists: number;
   damageDealt: number;
+  damageTaken: number;
   healingDone: number;
 }
 
@@ -105,6 +107,7 @@ export interface MatchSummary {
   winningTeam: TeamColor;
   blueScore: number;
   redScore: number;
+  yellowScore: number;
   note: string;
   hasScreenshot: boolean;
   participants: MatchParticipant[];
@@ -310,6 +313,8 @@ export interface MatchParticipantInput {
   assists: number;
   /** @minimum 0 */
   damageDealt: number;
+  /** @minimum 0 */
+  damageTaken: number;
   /** @minimum 0 */
   healingDone: number;
 }

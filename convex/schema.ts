@@ -1,7 +1,7 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
-const team = v.union(v.literal("BLUE"), v.literal("RED"));
+const team = v.union(v.literal("BLUE"), v.literal("RED"), v.literal("YELLOW"));
 
 export default defineSchema({
   users: defineTable({
@@ -93,6 +93,7 @@ export default defineSchema({
     kills: v.number(),
     assists: v.number(),
     damageDealt: v.number(),
+    damageTaken: v.optional(v.number()),
     healingDone: v.number(),
   })
     .index("by_match", ["matchId"])

@@ -50,3 +50,5 @@ Thumbs.db
 
 # Generated Convex client bindings
 /convex/_generated/
+
+.env.local

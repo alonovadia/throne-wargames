@@ -49,10 +49,14 @@ export default function HomePage() {
                 <div className="mt-5">
                   <div className="flex items-end justify-between gap-4">
                     <div>
-                      <div className="font-display text-3xl font-bold">{overview.latestMatch.winningTeam === 'BLUE' ? 'BLUE' : 'RED'} <span className="text-primary">VICTOR</span></div>
+                      <div className="font-display text-3xl font-bold">{overview.latestMatch.winningTeam} <span className="text-primary">VICTOR</span></div>
                       <div className="mt-1 font-mono text-[10px] uppercase text-slate-400">{formatDate(overview.latestMatch.matchDate)}</div>
                     </div>
-                    <div className="font-mono text-2xl text-slate-200">{overview.latestMatch.blueScore}<span className="px-1 text-slate-500">:</span>{overview.latestMatch.redScore}</div>
+                    <div className="font-mono text-2xl text-slate-200">
+                      {[...new Set(overview.latestMatch.participants.map((participant) => participant.team))].map((team, index) => (
+                        <span key={team}>{index ? <span className="px-1 text-slate-500">:</span> : null}{team === 'BLUE' ? overview.latestMatch!.blueScore : team === 'RED' ? overview.latestMatch!.redScore : overview.latestMatch!.yellowScore}</span>
+                      ))}
+                    </div>
                   </div>
                   <p className="mt-5 border-l border-primary pl-3 text-xs leading-5 text-slate-300">{overview.latestMatch.note || 'A measured exchange on the field.'}</p>
                 </div>

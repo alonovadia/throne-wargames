@@ -20,5 +20,7 @@ export interface MatchParticipantInput {
   /** @minimum 0 */
   damageDealt: number;
   /** @minimum 0 */
+  damageTaken: number;
+  /** @minimum 0 */
   healingDone: number;
 }

@@ -492,7 +492,7 @@ components:
       required: [actor, reason]
     TeamColor:
       type: string
-      enum: [BLUE, RED]
+      enum: [BLUE, RED, YELLOW]
     Overview:
       type: object
       properties:
@@ -618,9 +618,11 @@ components:
           type: integer
         damageDealt:
           type: integer
+        damageTaken:
+          type: integer
         healingDone:
           type: integer
-      required: [playerId, characterName, team, isWinner, mainWeapon, offWeapon, kills, assists, damageDealt, healingDone]
+      required: [playerId, characterName, team, isWinner, mainWeapon, offWeapon, kills, assists, damageDealt, damageTaken, healingDone]
     MatchSummary:
       type: object
       properties:
@@ -634,6 +636,8 @@ components:
           type: integer
         redScore:
           type: integer
+        yellowScore:
+          type: integer
         note:
           type: string
         hasScreenshot:
@@ -642,7 +646,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/MatchParticipant"
-      required: [id, matchDate, winningTeam, blueScore, redScore, note, hasScreenshot, participants]
+      required: [id, matchDate, winningTeam, blueScore, redScore, yellowScore, note, hasScreenshot, participants]
     LeaderboardResponse:
       type: object
       properties:
@@ -821,10 +825,13 @@ components:
         damageDealt:
           type: integer
           minimum: 0
+        damageTaken:
+          type: integer
+          minimum: 0
         healingDone:
           type: integer
           minimum: 0
-      required: [characterName, team, mainWeapon, offWeapon, kills, assists, damageDealt, healingDone]
+      required: [characterName, team, mainWeapon, offWeapon, kills, assists, damageDealt, damageTaken, healingDone]
     MatchInput:
       type: object
       properties:

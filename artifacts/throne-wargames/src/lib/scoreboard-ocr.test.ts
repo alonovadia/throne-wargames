@@ -74,3 +74,27 @@ test('parses two scoreboard columns with more than six players per team', () => 
   assert.equal(extraction.participants.filter((row) => row.team === TeamColor.BLUE).length, 20);
   assert.equal(extraction.participants.filter((row) => row.team === TeamColor.RED).length, 20);
 });
+
+test('parses five stats and explicit YELLOW team color from raw text lines', () => {
+  const rawText = 'YELLOWPlayer Yellow 1 2 3,000 4,000 5,000\nBLUEPlayer Blue 5 4 3,000 2,000 1,000';
+  const extraction = parseScoreboardText(rawText, 90);
+
+  assert.equal(extraction.participants.length, 2);
+  const p1 = extraction.participants[0];
+  assert.equal(p1.characterName, 'YELLOWPlayer');
+  assert.equal(p1.team, TeamColor.YELLOW);
+  assert.equal(p1.kills, 1);
+  assert.equal(p1.assists, 2);
+  assert.equal(p1.damageDealt, 3000);
+  assert.equal(p1.damageTaken, 4000);
+  assert.equal(p1.healingDone, 5000);
+
+  const p2 = extraction.participants[1];
+  assert.equal(p2.characterName, 'BLUEPlayer');
+  assert.equal(p2.team, TeamColor.BLUE);
+  assert.equal(p2.kills, 5);
+  assert.equal(p2.assists, 4);
+  assert.equal(p2.damageDealt, 3000);
+  assert.equal(p2.damageTaken, 2000);
+  assert.equal(p2.healingDone, 1000);
+});

@@ -18,5 +18,6 @@ export interface MatchParticipant {
   kills: number;
   assists: number;
   damageDealt: number;
+  damageTaken: number;
   healingDone: number;
 }

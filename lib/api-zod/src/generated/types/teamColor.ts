@@ -12,4 +12,5 @@ export type TeamColor = typeof TeamColor[keyof typeof TeamColor];
 export const TeamColor = {
   BLUE: 'BLUE',
   RED: 'RED',
+  YELLOW: 'YELLOW',
 } as const;

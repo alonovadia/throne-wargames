@@ -1,7 +1,7 @@
 import type { Request } from "express";
 
 export type Weapon = string;
-export type TeamColor = "BLUE" | "RED";
+export type TeamColor = "BLUE" | "RED" | "YELLOW";
 export type ClassCatalogEntry = { key: string; displayName: string; aliases: string[]; active: boolean; sortOrder: number; createdAt: string; updatedAt: string };
 const fallbackClassSeeds: ReadonlyArray<readonly [string, string, readonly string[]]> = [
   ["GREATSWORD", "Greatsword", ["greatsword", "great sword", "gs"]],
@@ -33,6 +33,7 @@ export type MatchParticipant = {
   kills: number;
   assists: number;
   damageDealt: number;
+  damageTaken: number;
   healingDone: number;
 };
 
@@ -42,6 +43,7 @@ export type MatchSummary = {
   winningTeam: TeamColor;
   blueScore: number;
   redScore: number;
+  yellowScore: number;
   note: string;
   hasScreenshot: boolean;
   participants: MatchParticipant[];
@@ -263,6 +265,9 @@ export const commitMatch = (input: MatchInput) => {
       .reduce((sum, participant) => sum + participant.kills, 0),
     redScore: participants
       .filter((participant) => participant.team === "RED")
+      .reduce((sum, participant) => sum + participant.kills, 0),
+    yellowScore: participants
+      .filter((participant) => participant.team === "YELLOW")
       .reduce((sum, participant) => sum + participant.kills, 0),
     note: input.note ?? "",
     hasScreenshot: false,

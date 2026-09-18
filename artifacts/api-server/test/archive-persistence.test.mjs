@@ -92,6 +92,7 @@ test("Convex archive writes survive fresh reads and satisfy every public API sha
     kills: index + 1,
     assists: index + 10,
     damageDealt: 100_000 + index * 1_000,
+    damageTaken: 50_000 + index * 500,
     healingDone: 5_000 + index * 100,
   }));
 
@@ -131,9 +132,9 @@ test("Convex archive writes survive fresh reads and satisfy every public API sha
       actor: "Integration Operator",
       participants: participants.map((participant, index) => ({
         ...participant,
-        team: index < 7 ? "BLUE" : "RED",
+         team: index === 11 ? "YELLOW" : participant.team,
       })),
-    }, /six participants on each team/);
+    }, /exactly two teams/);
     await assertMutationRejected("admin:commitMatch", {
       serverSecret,
       screenshotStorageId,

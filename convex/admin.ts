@@ -3,7 +3,7 @@ import { v } from "convex/values";
 
 const weapon = v.string();
 
-const team = v.union(v.literal("BLUE"), v.literal("RED"));
+const team = v.union(v.literal("BLUE"), v.literal("RED"), v.literal("YELLOW"));
 
 const participantInput = v.object({
   characterName: v.string(),
@@ -13,6 +13,7 @@ const participantInput = v.object({
   kills: v.number(),
   assists: v.number(),
   damageDealt: v.number(),
+  damageTaken: v.number(),
   healingDone: v.number(),
 });
 const serverSecretDigest =
@@ -388,6 +389,7 @@ export const commitMatch = mutation({
         kills: v.number(),
         assists: v.number(),
         damageDealt: v.number(),
+        damageTaken: v.number(),
         healingDone: v.number(),
       }),
     ),
@@ -431,6 +433,7 @@ export const commitMatch = mutation({
         kills: participant.kills,
         assists: participant.assists,
         damageDealt: participant.damageDealt,
+        damageTaken: participant.damageTaken,
         healingDone: participant.healingDone,
       });
     }
@@ -508,7 +511,7 @@ export const scoreboardUrl = query({
 });
 
 
-async function replaceParticipants(ctx: any, matchId: any, winningTeam: "BLUE" | "RED", participants: any[]) {
+async function replaceParticipants(ctx: any, matchId: any, winningTeam: "BLUE" | "RED" | "YELLOW", participants: any[]) {
   const existingRows = await ctx.db.query("matchParticipants")
     .withIndex("by_match", (q: any) => q.eq("matchId", matchId)).collect();
   await Promise.all(existingRows.map((row: any) => ctx.db.delete(row._id)));
@@ -523,7 +526,8 @@ async function replaceParticipants(ctx: any, matchId: any, winningTeam: "BLUE" |
       matchId, playerId, team: participant.team, isWinner: participant.team === winningTeam,
       mainWeapon: participant.mainWeapon, offWeapon: participant.offWeapon,
       kills: participant.kills, assists: participant.assists,
-      damageDealt: participant.damageDealt, healingDone: participant.healingDone,
+      damageDealt: participant.damageDealt, damageTaken: participant.damageTaken,
+      healingDone: participant.healingDone,
     });
   }
 }
@@ -613,25 +617,30 @@ async function loadAdminMatch(ctx: any, match: any) {
       .reduce((sum: number, row: any) => sum + row.kills, 0),
     redScore: snapshot.participants.filter((row: any) => row.team === "RED")
       .reduce((sum: number, row: any) => sum + row.kills, 0),
+    yellowScore: snapshot.participants.filter((row: any) => row.team === "YELLOW")
+      .reduce((sum: number, row: any) => sum + row.kills, 0),
     audit: await auditFor(ctx, "MATCH", String(match._id)),
   };
 }
 
 function validateParticipants(participants: Array<{
   characterName: string;
-  team: "BLUE" | "RED";
+  team: "BLUE" | "RED" | "YELLOW";
   kills: number;
   assists: number;
   damageDealt: number;
+  damageTaken: number;
   healingDone: number;
 }>) {
   if (participants.length < 2 || participants.length > 96) {
     throw new Error("A completed match must contain two teams with no more than 48 participants each.");
   }
-  const bluePlayers = participants.filter((row) => row.team === "BLUE").length;
-  const redPlayers = participants.filter((row) => row.team === "RED").length;
-  if (bluePlayers < 1 || redPlayers < 1 || bluePlayers > 48 || redPlayers > 48) {
-    throw new Error("A completed match must contain between one and 48 participants on each team.");
+  const teamCounts = new Map<string, number>();
+  for (const participant of participants) {
+    teamCounts.set(participant.team, (teamCounts.get(participant.team) ?? 0) + 1);
+  }
+  if (teamCounts.size !== 2 || [...teamCounts.values()].some((count) => count < 1 || count > 48)) {
+    throw new Error("A completed match must contain exactly two teams with between one and 48 participants each.");
   }
   const normalizedNames = participants.map((row) => row.characterName.trim().toLocaleLowerCase());
   if (new Set(normalizedNames).size !== normalizedNames.length) {
@@ -639,7 +648,7 @@ function validateParticipants(participants: Array<{
   }
   for (const row of participants) {
     if (!row.characterName.trim() || row.characterName.length > 40 ||
-        [row.kills, row.assists, row.damageDealt, row.healingDone].some(
+        [row.kills, row.assists, row.damageDealt, row.damageTaken, row.healingDone].some(
           (value) => !Number.isSafeInteger(value) || value < 0,
         )) {
       throw new Error("Every participant needs a valid name and non-negative whole-number statistics.");
@@ -670,7 +679,8 @@ async function matchSnapshot(ctx: any, match: any) {
     return {
       playerId: String(row.playerId), characterName: player.characterName, team: row.team,
       isWinner: row.isWinner, mainWeapon: row.mainWeapon, offWeapon: row.offWeapon,
-      kills: row.kills, assists: row.assists, damageDealt: row.damageDealt, healingDone: row.healingDone,
+      kills: row.kills, assists: row.assists, damageDealt: row.damageDealt,
+      damageTaken: row.damageTaken ?? 0, healingDone: row.healingDone,
     };
   }));
   return {

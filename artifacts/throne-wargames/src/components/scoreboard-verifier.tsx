@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, ImageUp, LoaderCircle, ScanLine } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ImageUp, LoaderCircle, ScanLine, Plus, Trash2 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -12,6 +12,8 @@ import type { MatchInput } from '@workspace/api-client-react';
 import {
   extractScoreboard,
   readImageDimensions,
+  defaultBoundaries,
+  type ColumnBoundary,
   type VerifiedParticipant,
 } from '@/lib/scoreboard-ocr';
 
@@ -47,6 +49,7 @@ export function ScoreboardVerifier({
   const [date, setDate] = useState('');
   const [winningTeam, setWinningTeam] = useState<TeamColor>(TeamColor.BLUE);
   const [note, setNote] = useState('');
+  const [boundaries, setBoundaries] = useState<ColumnBoundary[]>(defaultBoundaries);
   const commitMutation = useCommitMatch({ request: adminRequest });
   const classes = useGetClasses();
   const classOptions = classes.data ?? [];
@@ -75,7 +78,7 @@ export function ScoreboardVerifier({
     setProgress(0);
     setError('');
     try {
-       const result = await extractScoreboard(file, setProgress, classOptions);
+      const result = await extractScoreboard(file, setProgress, classOptions, boundaries);
       setParticipants(result.participants);
       setConfidence(result.confidence);
     } catch {
@@ -83,6 +86,40 @@ export function ScoreboardVerifier({
     } finally {
       setExtracting(false);
     }
+  };
+
+  const updateBoundary = (index: number, newEnd: number) => {
+    setBoundaries((current) => {
+      const updated = [...current];
+      // Bound the movement by previous start and next end
+      const min = updated[index].start + 1;
+      const max = updated[index + 1].end - 1;
+      const validEnd = Math.max(min, Math.min(max, newEnd));
+      
+      updated[index] = { ...updated[index], end: validEnd };
+      updated[index + 1] = { ...updated[index + 1], start: validEnd };
+      return updated;
+    });
+  };
+
+  const addParticipantRow = () => {
+    setParticipants(current => [...current, {
+      characterName: '',
+      team: TeamColor.BLUE,
+      mainWeapon: null,
+      offWeapon: null,
+      kills: null,
+      assists: null,
+      damageDealt: null,
+      damageTaken: null,
+      healingDone: null,
+      confidence: 0,
+      confirmed: false,
+    }]);
+  };
+
+  const removeParticipantRow = (index: number) => {
+    setParticipants(current => current.filter((_, i) => i !== index));
   };
 
   const updateParticipant = <K extends keyof VerifiedParticipant>(
@@ -126,6 +163,7 @@ export function ScoreboardVerifier({
       participant.kills === null ||
       participant.assists === null ||
       participant.damageDealt === null ||
+      participant.damageTaken === null ||
       participant.healingDone === null
     )) {
       setError('Enter every participant statistic before commit.');
@@ -136,14 +174,20 @@ export function ScoreboardVerifier({
       setError('Each participant must appear exactly once.');
       return;
     }
-    const bluePlayers = participants.filter((participant) => participant.team === TeamColor.BLUE).length;
-    const redPlayers = participants.filter((participant) => participant.team === TeamColor.RED).length;
-    if (bluePlayers < 1 || redPlayers < 1 || bluePlayers > 48 || redPlayers > 48) {
-      setError('Assign between 1 and 48 participants to each team.');
+    const teamCounts = new Map<TeamColor, number>();
+    participants.forEach((participant) => {
+      teamCounts.set(participant.team, (teamCounts.get(participant.team) ?? 0) + 1);
+    });
+    if (teamCounts.size !== 2 || [...teamCounts.values()].some((count) => count < 1 || count > 48)) {
+      setError('Assign exactly two teams with between 1 and 48 participants each.');
+      return;
+    }
+    if (!teamCounts.has(winningTeam)) {
+      setError('The winning team must be one of the two teams in this match.');
       return;
     }
     if (participants.some((participant) => !participant.confirmed)) {
-      setError('Confirm all twelve rows against the screenshot before commit.');
+      setError('Confirm all rows against the screenshot before commit.');
       return;
     }
     const payload: MatchInput = {
@@ -164,6 +208,7 @@ export function ScoreboardVerifier({
         kills: participant.kills as number,
         assists: participant.assists as number,
         damageDealt: participant.damageDealt as number,
+        damageTaken: participant.damageTaken as number,
         healingDone: participant.healingDone as number,
       })),
     };
@@ -203,7 +248,53 @@ export function ScoreboardVerifier({
             onChange={(event) => void chooseFile(event.target.files?.[0])}
             data-testid="input-scoreboard-file"
           />
-          {previewUrl ? <img src={previewUrl} alt="Scoreboard awaiting OCR" className="mt-3 w-full border border-border" /> : null}
+          {previewUrl ? (
+            <div className="mt-3 w-full border border-border">
+              <div className="relative">
+                <img src={previewUrl} alt="Scoreboard awaiting OCR" className="block w-full h-auto" />
+                {boundaries.map((boundary) => (
+                  <div
+                    key={boundary.key}
+                    className="pointer-events-none absolute inset-y-0 border-l border-dashed border-primary/80"
+                    style={{ left: `${boundary.start}%` }}
+                  >
+                    <div className="absolute left-1 top-2 bg-background/85 px-1 py-0.5 font-mono text-[8px] text-primary">
+                      {boundary.label}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-2 space-y-2 p-2 bg-muted/20 border-t border-border">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-bold font-mono text-muted-foreground uppercase tracking-wider">Adjust OCR Columns</span>
+                  <button 
+                    type="button" 
+                    onClick={() => setBoundaries(defaultBoundaries)}
+                    className="text-[10px] uppercase font-bold text-primary hover:underline"
+                  >
+                    Reset Defaults
+                  </button>
+                </div>
+                {boundaries.slice(0, -1).map((boundary, i) => (
+                  <div key={boundary.key} className="flex items-center gap-3">
+                    <label className="text-[10px] uppercase w-32 shrink-0 font-mono text-muted-foreground text-right">
+                      {boundary.label} / {boundaries[i+1].label}
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      value={boundary.end}
+                      onChange={(e) => updateBoundary(i, parseFloat(e.target.value))}
+                      className="flex-1 accent-primary"
+                    />
+                    <span className="text-[10px] font-mono w-8">{boundary.end.toFixed(1)}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
           {imageDimensions ? <p className="mt-2 text-xs text-muted-foreground">{imageDimensions.width}×{imageDimensions.height} accepted. OCR will scale it automatically while preserving its aspect ratio.</p> : null}
           <button
             type="button"
@@ -240,13 +331,13 @@ export function ScoreboardVerifier({
         <>
           <div className="mt-7 grid gap-4 sm:grid-cols-3">
             <label><span className="field-label">Match date</span><input type="datetime-local" value={date} onChange={(event) => setDate(event.target.value)} className="field-input" /></label>
-            <label><span className="field-label">Winning team</span><select value={winningTeam} onChange={(event) => setWinningTeam(event.target.value as TeamColor)} className="field-input"><option value={TeamColor.BLUE}>Blue</option><option value={TeamColor.RED}>Red</option></select></label>
+            <label><span className="field-label">Winning team</span><select value={winningTeam} onChange={(event) => setWinningTeam(event.target.value as TeamColor)} className="field-input"><option value={TeamColor.BLUE}>Blue</option><option value={TeamColor.RED}>Red</option><option value={TeamColor.YELLOW}>Yellow</option></select></label>
             <label><span className="field-label">Field note</span><input value={note} onChange={(event) => setNote(event.target.value)} className="field-input" placeholder="What decided the fight?" /></label>
           </div>
-          <div className="mt-7 overflow-x-auto border border-border">
-            <table className="w-full min-w-[1050px] text-left text-xs">
+          <div className="mt-7 overflow-x-auto border border-border relative">
+            <table className="w-full min-w-[1150px] text-left text-xs">
               <thead className="bg-muted/60 font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground">
-                <tr>{['Team', 'Character', 'Main weapon', 'Off weapon', 'Kills', 'Assists', 'Damage', 'Healing', 'Check'].map((label) => <th key={label} className="px-3 py-3">{label}</th>)}</tr>
+                <tr>{['Team', 'Character', 'Main weapon', 'Off weapon', 'Kills', 'Assists', 'Damage', 'Taken', 'Healing', 'Check', ''].map((label) => <th key={label} className="px-3 py-3">{label}</th>)}</tr>
               </thead>
               <tbody>
                 {participants.map((participant, index) => (
@@ -256,16 +347,17 @@ export function ScoreboardVerifier({
                         aria-label={`Team ${index + 1}`}
                         value={participant.team}
                         onChange={(event) => updateParticipant(index, 'team', event.target.value as TeamColor)}
-                        className={`field-input min-w-24 font-mono font-bold ${participant.team === TeamColor.BLUE ? 'text-accent' : 'text-primary'}`}
+                        className={`field-input min-w-24 font-mono font-bold ${participant.team === TeamColor.BLUE ? 'text-accent' : participant.team === TeamColor.RED ? 'text-primary' : 'text-yellow-500'}`}
                       >
                         <option value={TeamColor.BLUE}>Blue</option>
                         <option value={TeamColor.RED}>Red</option>
+                        <option value={TeamColor.YELLOW}>Yellow</option>
                       </select>
                     </td>
                     <td className="p-2"><input aria-label={`Character ${index + 1}`} value={participant.characterName} onChange={(event) => updateParticipant(index, 'characterName', event.target.value)} className="field-input min-w-36" /></td>
                      <td className="p-2"><WeaponSelect options={classOptions} value={participant.mainWeapon} onChange={(value) => updateParticipant(index, 'mainWeapon', value)} /></td>
                      <td className="p-2"><WeaponSelect options={classOptions} value={participant.offWeapon} onChange={(value) => updateParticipant(index, 'offWeapon', value)} /></td>
-                    {(['kills', 'assists', 'damageDealt', 'healingDone'] as const).map((key) => (
+                    {(['kills', 'assists', 'damageDealt', 'damageTaken', 'healingDone'] as const).map((key) => (
                       <td className="p-2" key={key}><input aria-label={`${key} ${index + 1}`} type="number" min="0" step="1" value={participant[key] ?? ''} onChange={(event) => updateParticipant(index, key, event.target.value === '' ? null : Math.max(0, Number.parseInt(event.target.value, 10)))} className="field-input w-24" /></td>
                     ))}
                     <td className="px-3 py-2">
@@ -280,10 +372,24 @@ export function ScoreboardVerifier({
                         {participant.confirmed ? 'Confirmed' : 'Confirm'}
                       </label>
                     </td>
+                    <td className="px-2">
+                      <button type="button" onClick={() => removeParticipantRow(index)} className="text-muted-foreground hover:text-destructive p-1 rounded-sm hover:bg-destructive/10" aria-label={`Remove row ${index + 1}`} title="Remove row">
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            <div className="border-t border-border p-2 bg-muted/20">
+              <button 
+                type="button" 
+                onClick={addParticipantRow}
+                className="inline-flex items-center gap-2 text-[10px] uppercase tracking-wider font-bold text-muted-foreground hover:text-primary transition-colors"
+              >
+                <Plus size={14} /> Add Row
+              </button>
+            </div>
           </div>
           {error || commitMutation.isError ? <div className="mt-5 border border-destructive/35 bg-destructive/5 p-3 text-sm text-muted-foreground">{error || 'Commit rejected. Confirm every field and operator authorization.'}</div> : null}
           <div className="mt-7 flex justify-end">
