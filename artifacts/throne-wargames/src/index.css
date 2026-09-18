@@ -433,9 +433,8 @@
   }
 }
 
-:root {
-  color-scheme: light;
-}
+:root { color-scheme: light; }
+:root.dark { color-scheme: dark; }
 
 html {
   scroll-behavior: smooth;
