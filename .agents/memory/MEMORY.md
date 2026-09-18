@@ -3,3 +3,4 @@
 - [Scoreboard upload lifecycle](scoreboard-upload-lifecycle.md) — persist scoreboards only during match commit and delete the object if the database write fails.
 - [Distributed public-write limits](distributed-public-write-limits.md) — production throttling must use shared durable state; process-local counters are only a disconnected-development fallback.
 - [Convex development sync permissions](convex-development-sync.md) — the workspace deploy key can fail function sync because it lacks deployment log-view permission.
+- [GitHub write access](github-write-access.md) — use the configured GitHub integration for repository writes when the HTTPS remote has no usable credential.
