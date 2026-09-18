@@ -45,6 +45,7 @@ export function ScoreboardVerifier({
   const [progress, setProgress] = useState(0);
   const [extracting, setExtracting] = useState(false);
   const [confidence, setConfidence] = useState<number | null>(null);
+  const [preprocessing, setPreprocessing] = useState<string | null>(null);
   const [participants, setParticipants] = useState<VerifiedParticipant[]>([]);
   const [date, setDate] = useState('');
   const [winningTeam, setWinningTeam] = useState<TeamColor>(TeamColor.BLUE);
@@ -59,6 +60,7 @@ export function ScoreboardVerifier({
     setError('');
     setParticipants([]);
     setConfidence(null);
+    setPreprocessing(null);
     setImageDimensions(null);
     if (!selected) return;
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(selected.type)) {
@@ -81,6 +83,7 @@ export function ScoreboardVerifier({
       const result = await extractScoreboard(file, setProgress, classOptions, boundaries);
       setParticipants(result.participants);
       setConfidence(result.confidence);
+      setPreprocessing(result.preprocessing);
     } catch {
       setError('OCR could not read this screenshot. Try a clean, uncropped scoreboard capture.');
     } finally {
@@ -114,6 +117,8 @@ export function ScoreboardVerifier({
       damageTaken: null,
       healingDone: null,
       confidence: 0,
+      fieldConfidence: {},
+      warnings: ['Manually added row'],
       confirmed: false,
     }]);
   };
@@ -127,6 +132,11 @@ export function ScoreboardVerifier({
     key: K,
     value: VerifiedParticipant[K],
   ) => {
+    const warningBelongsToField = (warning: string) => {
+      if (key === 'characterName') return warning.startsWith('Character name');
+      if (key === 'team') return warning.startsWith('Team');
+      return typeof key === 'string' && warning.startsWith(key);
+    };
     setParticipants((current) =>
       current.map((participant, participantIndex) =>
         participantIndex === index
@@ -134,6 +144,12 @@ export function ScoreboardVerifier({
               ...participant,
               [key]: value,
               confidence: key === 'confirmed' ? participant.confidence : 100,
+              fieldConfidence: key === 'confirmed'
+                ? participant.fieldConfidence
+                : { ...participant.fieldConfidence, [key]: 100 },
+              warnings: key === 'confirmed'
+                ? participant.warnings
+                : participant.warnings.filter((warning) => !warningBelongsToField(warning)),
               confirmed: key === 'confirmed' ? Boolean(value) : false,
             }
           : participant,
@@ -149,6 +165,10 @@ export function ScoreboardVerifier({
     }
     if (participants.some((participant) => !participant.characterName.trim())) {
       setError('Every row needs a character name before commit.');
+      return;
+    }
+    if (participants.some((participant) => participant.team === null)) {
+      setError('Assign a team to every row before commit.');
       return;
     }
     if (participants.length < 2 || participants.length > 96) {
@@ -176,6 +196,7 @@ export function ScoreboardVerifier({
     }
     const teamCounts = new Map<TeamColor, number>();
     participants.forEach((participant) => {
+      if (!participant.team) return;
       teamCounts.set(participant.team, (teamCounts.get(participant.team) ?? 0) + 1);
     });
     if (teamCounts.size !== 2 || [...teamCounts.values()].some((count) => count < 1 || count > 48)) {
@@ -200,8 +221,15 @@ export function ScoreboardVerifier({
         contentType: file.type as MatchInput['screenshot']['contentType'],
         base64: await fileToBase64(file),
       },
-      participants: participants.map(({ confidence: _confidence, confirmed: _confirmed, ...participant }) => ({
+      participants: participants.map(({
+        confidence: _confidence,
+        confirmed: _confirmed,
+        fieldConfidence: _fieldConfidence,
+        warnings: _warnings,
+        ...participant
+      }) => ({
         ...participant,
+        team: participant.team as TeamColor,
         characterName: participant.characterName.trim(),
          mainWeapon: participant.mainWeapon as string,
          offWeapon: participant.offWeapon as string,
@@ -314,6 +342,12 @@ export function ScoreboardVerifier({
               <div className="mt-2 text-sm font-bold">
                 {participants.length ? `${participants.length} rows extracted for operator review` : 'Upload and extract to begin'}
               </div>
+              {participants.length ? (
+                <div className="mt-2 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+                  {participants.filter((participant) => !participant.confirmed && participant.warnings.length > 0).length} rows need attention
+                  {preprocessing ? ` · ${preprocessing} image pass selected` : ''}
+                </div>
+              ) : null}
             </div>
             {confidence !== null ? (
               <div className={`border px-3 py-2 font-mono text-xs font-bold ${confidence >= 80 ? 'border-accent text-accent' : 'border-primary text-primary'}`}>
@@ -341,24 +375,29 @@ export function ScoreboardVerifier({
               </thead>
               <tbody>
                 {participants.map((participant, index) => (
-                  <tr key={index} className={`border-t border-border ${participant.confidence < 80 ? 'bg-primary/5' : ''}`}>
+                  <tr
+                    key={index}
+                    title={participant.warnings.join(' · ') || 'No OCR warnings'}
+                    className={`border-t border-border ${!participant.confirmed && (participant.warnings.length || participant.confidence < 80) ? 'bg-primary/5' : ''}`}
+                  >
                     <td className="p-2">
                       <select
                         aria-label={`Team ${index + 1}`}
-                        value={participant.team}
-                        onChange={(event) => updateParticipant(index, 'team', event.target.value as TeamColor)}
-                        className={`field-input min-w-24 font-mono font-bold ${participant.team === TeamColor.BLUE ? 'text-accent' : participant.team === TeamColor.RED ? 'text-primary' : 'text-yellow-500'}`}
+                        value={participant.team ?? ''}
+                        onChange={(event) => updateParticipant(index, 'team', event.target.value ? event.target.value as TeamColor : null)}
+                        className={`field-input min-w-24 font-mono font-bold ${participant.team === TeamColor.BLUE ? 'text-accent' : participant.team === TeamColor.RED ? 'text-primary' : participant.team === TeamColor.YELLOW ? 'text-yellow-500' : 'text-muted-foreground'}`}
                       >
+                        <option value="">Review team</option>
                         <option value={TeamColor.BLUE}>Blue</option>
                         <option value={TeamColor.RED}>Red</option>
                         <option value={TeamColor.YELLOW}>Yellow</option>
                       </select>
                     </td>
-                    <td className="p-2"><input aria-label={`Character ${index + 1}`} value={participant.characterName} onChange={(event) => updateParticipant(index, 'characterName', event.target.value)} className="field-input min-w-36" /></td>
+                    <td className="p-2"><input aria-label={`Character ${index + 1}`} title={participant.fieldConfidence.characterName !== undefined ? `OCR confidence ${participant.fieldConfidence.characterName}%` : undefined} value={participant.characterName} onChange={(event) => updateParticipant(index, 'characterName', event.target.value)} className={`field-input min-w-36 ${(participant.fieldConfidence.characterName ?? 100) < 65 ? 'border-primary' : ''}`} /></td>
                      <td className="p-2"><WeaponSelect options={classOptions} value={participant.mainWeapon} onChange={(value) => updateParticipant(index, 'mainWeapon', value)} /></td>
                      <td className="p-2"><WeaponSelect options={classOptions} value={participant.offWeapon} onChange={(value) => updateParticipant(index, 'offWeapon', value)} /></td>
                     {(['kills', 'assists', 'damageDealt', 'damageTaken', 'healingDone'] as const).map((key) => (
-                      <td className="p-2" key={key}><input aria-label={`${key} ${index + 1}`} type="number" min="0" step="1" value={participant[key] ?? ''} onChange={(event) => updateParticipant(index, key, event.target.value === '' ? null : Math.max(0, Number.parseInt(event.target.value, 10)))} className="field-input w-24" /></td>
+                      <td className="p-2" key={key}><input aria-label={`${key} ${index + 1}`} title={participant.fieldConfidence[key] !== undefined ? `OCR confidence ${participant.fieldConfidence[key]}%` : undefined} type="number" min="0" step="1" value={participant[key] ?? ''} onChange={(event) => updateParticipant(index, key, event.target.value === '' ? null : Math.max(0, Number.parseInt(event.target.value, 10)))} className={`field-input w-24 ${participant[key] === null || (participant.fieldConfidence[key] ?? 100) < 65 ? 'border-primary bg-primary/5' : ''}`} /></td>
                     ))}
                     <td className="px-3 py-2">
                       <label className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-wide">

@@ -1,9 +1,28 @@
 import { createWorker, type LoggerMessage } from 'tesseract.js';
 import { TeamColor } from '@workspace/api-client-react';
+import {
+  classifyTeamPixels,
+  cleanNumericCell,
+  clusterRowAnchors,
+  detectTeamFromText,
+  scoreExtractionCandidate,
+  type DetectedCell,
+  type OcrFieldKey,
+  type TeamDetection,
+} from './scoreboard-ocr-core';
+
+export type ParticipantField =
+  | 'characterName'
+  | 'team'
+  | 'kills'
+  | 'assists'
+  | 'damageDealt'
+  | 'damageTaken'
+  | 'healingDone';
 
 export type VerifiedParticipant = {
   characterName: string;
-  team: TeamColor;
+  team: TeamColor | null;
   mainWeapon: string | null;
   offWeapon: string | null;
   kills: number | null;
@@ -12,6 +31,8 @@ export type VerifiedParticipant = {
   damageTaken: number | null;
   healingDone: number | null;
   confidence: number;
+  fieldConfidence: Partial<Record<ParticipantField, number>>;
+  warnings: string[];
   confirmed: boolean;
 };
 
@@ -19,6 +40,7 @@ export type ScoreboardExtraction = {
   participants: VerifiedParticipant[];
   confidence: number;
   rawText: string;
+  preprocessing: 'original' | 'contrast' | 'threshold';
 };
 
 export type ColumnBoundary = {
@@ -104,6 +126,8 @@ function parseLine(line: string, columnIndex: number, aliases = weaponAliases): 
     damageTaken,
     healingDone,
     confidence: Math.round((detectedFields / 7) * 100),
+    fieldConfidence: {},
+    warnings: [],
     confirmed: false,
     _explicitTeam: explicitTeamDetected, // internal flag
   } as VerifiedParticipant & { _explicitTeam?: boolean };
@@ -122,156 +146,215 @@ export async function extractScoreboard(
   classes: Array<{ key: string; aliases: string[] }> = [],
   boundaries: ColumnBoundary[] = defaultBoundaries,
 ): Promise<ScoreboardExtraction> {
+  let activePass = 0;
+  const preprocessingModes = ['original', 'contrast', 'threshold'] as const;
   const worker = await createWorker('eng', undefined, {
     logger: (message: LoggerMessage) => {
-      if (message.status === 'recognizing text') onProgress(Math.round(message.progress * 100));
+      if (message.status === 'recognizing text') {
+        onProgress(Math.round(((activePass + message.progress) / preprocessingModes.length) * 100));
+      }
     },
   });
-  
+
   try {
     const url = URL.createObjectURL(image);
     const img = new Image();
     img.src = url;
     await img.decode();
     URL.revokeObjectURL(url);
-    
+
     const longestEdge = Math.max(img.naturalWidth, img.naturalHeight);
     const scale = longestEdge < minimumOcrEdge ? minimumOcrEdge / longestEdge : longestEdge > maximumOcrEdge ? maximumOcrEdge / longestEdge : 1;
-    
     const scaledWidth = Math.max(1, Math.round(img.naturalWidth * scale));
     const scaledHeight = Math.max(1, Math.round(img.naturalHeight * scale));
-    
-    const targetColumns = ['rank', 'name', 'team', 'kills', 'assists', 'damageDealt', 'damageTaken', 'healingDone'];
-    const columnsToOcr = boundaries.filter((b) => targetColumns.includes(b.key));
-    
-    let currentY = 0;
-    const stackInfo = columnsToOcr.map((col) => {
+
+    const sourceCanvas = document.createElement('canvas');
+    sourceCanvas.width = scaledWidth;
+    sourceCanvas.height = scaledHeight;
+    const sourceContext = sourceCanvas.getContext('2d', { willReadFrequently: true });
+    if (!sourceContext) throw new Error('Could not create OCR source canvas');
+    sourceContext.imageSmoothingEnabled = true;
+    sourceContext.imageSmoothingQuality = 'high';
+    sourceContext.drawImage(img, 0, 0, scaledWidth, scaledHeight);
+
+    const targetColumns: OcrFieldKey[] = ['rank', 'name', 'team', 'kills', 'assists', 'damageDealt', 'damageTaken', 'healingDone'];
+    const columnsToOcr = boundaries.filter((boundary): boundary is ColumnBoundary & { key: OcrFieldKey } =>
+      targetColumns.includes(boundary.key as OcrFieldKey),
+    );
+    const stackInfo = columnsToOcr.map((col, index) => {
       const colX = Math.round((col.start / 100) * scaledWidth);
       const colW = Math.round(((col.end - col.start) / 100) * scaledWidth);
-      const info = { key: col.key, y: currentY, h: scaledHeight, w: colW, colX };
-      currentY += scaledHeight + 20; // 20px black gap to prevent cross-column bleed
-      return info;
+      return { key: col.key, y: index * (scaledHeight + 20), h: scaledHeight, w: colW, colX };
     });
-    
-    const stackCanvas = document.createElement('canvas');
-    stackCanvas.width = Math.max(...stackInfo.map(i => i.w));
-    stackCanvas.height = currentY;
-    
-    const ctx = stackCanvas.getContext('2d');
-    if (!ctx) throw new Error('Could not create stacked OCR canvas');
-    
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.fillStyle = 'black';
-    ctx.fillRect(0, 0, stackCanvas.width, stackCanvas.height);
-    
-    for (const info of stackInfo) {
-      const sx = info.colX / scale;
-      const sy = 0;
-      const sWidth = info.w / scale;
-      const sHeight = img.naturalHeight;
-      ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, info.y, info.w, info.h);
-    }
-    
-    const stackedBlob = await new Promise<Blob>((resolve, reject) => {
-      stackCanvas.toBlob((b) => b ? resolve(b) : reject(new Error('Failed to blob')), 'image/png');
-    });
-    
-    const result = await worker.recognize(stackedBlob, {}, { blocks: true, text: true });
-    
-    type DetectedCell = { text: string; y: number; confidence: number };
-    const columnCells: Record<string, DetectedCell[]> = {};
-    for (const col of stackInfo) {
-      columnCells[col.key] = [];
-    }
-    
-    const lines = result.data.blocks?.flatMap(b => b.paragraphs?.flatMap(p => p.lines)) || [];
-    
-    // Group Tesseract lines by their vertical position in the stack
-    for (const line of lines) {
-      if (!line) continue;
-      const lineCenterY = line.bbox.y0 + (line.bbox.y1 - line.bbox.y0) / 2;
-      const matchingCol = stackInfo.find(c => lineCenterY >= c.y && lineCenterY < c.y + c.h);
-      if (matchingCol) {
-        columnCells[matchingCol.key].push({
+
+    const extractTeamPixels = (rowY: number, rowRadius: number) => {
+      const teamBoundary = boundaries.find((boundary) => boundary.key === 'team');
+      if (!teamBoundary) return [];
+      const x = Math.round((teamBoundary.start / 100) * scaledWidth);
+      const width = Math.max(1, Math.round(((teamBoundary.end - teamBoundary.start) / 100) * scaledWidth));
+      const y = Math.max(0, Math.round(rowY - rowRadius));
+      const height = Math.max(1, Math.min(scaledHeight - y, Math.round(rowRadius * 2)));
+      const data = sourceContext.getImageData(x, y, width, height).data;
+      const pixels: Array<{ r: number; g: number; b: number }> = [];
+      for (let index = 0; index < data.length; index += 16) {
+        pixels.push({ r: data[index], g: data[index + 1], b: data[index + 2] });
+      }
+      return pixels;
+    };
+
+    const candidates: ScoreboardExtraction[] = [];
+    for (const [passIndex, mode] of preprocessingModes.entries()) {
+      activePass = passIndex;
+      const stackCanvas = document.createElement('canvas');
+      stackCanvas.width = Math.max(...stackInfo.map((info) => info.w));
+      stackCanvas.height = stackInfo.length * (scaledHeight + 20);
+      const context = stackCanvas.getContext('2d', { willReadFrequently: true });
+      if (!context) throw new Error('Could not create stacked OCR canvas');
+      context.fillStyle = 'black';
+      context.fillRect(0, 0, stackCanvas.width, stackCanvas.height);
+
+      for (const info of stackInfo) {
+        context.drawImage(sourceCanvas, info.colX, 0, info.w, scaledHeight, 0, info.y, info.w, info.h);
+      }
+      if (mode !== 'original') {
+        const imageData = context.getImageData(0, 0, stackCanvas.width, stackCanvas.height);
+        for (let index = 0; index < imageData.data.length; index += 4) {
+          const luminance =
+            imageData.data[index] * 0.2126 +
+            imageData.data[index + 1] * 0.7152 +
+            imageData.data[index + 2] * 0.0722;
+          const adjusted = mode === 'threshold'
+            ? (luminance >= 135 ? 255 : 0)
+            : Math.max(0, Math.min(255, (luminance - 110) * 1.75 + 128));
+          imageData.data[index] = adjusted;
+          imageData.data[index + 1] = adjusted;
+          imageData.data[index + 2] = adjusted;
+        }
+        context.putImageData(imageData, 0, 0);
+      }
+
+      const stackedBlob = await new Promise<Blob>((resolve, reject) => {
+        stackCanvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Failed to prepare OCR image')), 'image/png');
+      });
+      const result = await worker.recognize(stackedBlob, {}, { blocks: true, text: true });
+      const columnCells: Partial<Record<OcrFieldKey, DetectedCell[]>> = {};
+      for (const column of stackInfo) columnCells[column.key] = [];
+
+      const lines = result.data.blocks?.flatMap((block) =>
+        block.paragraphs?.flatMap((paragraph) => paragraph.lines),
+      ) ?? [];
+      for (const line of lines) {
+        if (!line) continue;
+        const lineCenterY = line.bbox.y0 + (line.bbox.y1 - line.bbox.y0) / 2;
+        const matchingColumn = stackInfo.find((column) =>
+          lineCenterY >= column.y && lineCenterY < column.y + column.h,
+        );
+        if (!matchingColumn) continue;
+        columnCells[matchingColumn.key]?.push({
+          key: matchingColumn.key,
           text: line.text.trim(),
-          y: lineCenterY - matchingCol.y,
+          y: lineCenterY - matchingColumn.y,
           confidence: line.confidence,
         });
       }
+
+      const allCells = Object.values(columnCells).flat();
+      const rowTolerance = Math.max(8, scaledHeight / 120);
+      const rowAnchors = clusterRowAnchors(allCells, rowTolerance);
+      const rowSpacing = rowAnchors.length > 1
+        ? rowAnchors.slice(1).reduce((sum, anchor, index) => sum + anchor.y - rowAnchors[index].y, 0) / (rowAnchors.length - 1)
+        : scaledHeight / Math.max(1, rowAnchors.length);
+      const maximumDistance = Math.max(12, rowSpacing * 0.45);
+      const cellAtRow = (key: OcrFieldKey, y: number) => {
+        const nearest = (columnCells[key] ?? []).reduce<DetectedCell | null>((best, cell) =>
+          !best || Math.abs(cell.y - y) < Math.abs(best.y - y) ? cell : best, null);
+        return nearest && Math.abs(nearest.y - y) <= maximumDistance ? nearest : null;
+      };
+
+      const participants: VerifiedParticipant[] = [];
+      for (const anchor of rowAnchors) {
+        const nameCell = cellAtRow('name', anchor.y);
+        const characterName = (nameCell?.text ?? '').replace(/\s+/g, ' ').trim();
+
+        const teamCell = cellAtRow('team', anchor.y);
+        const textTeam = detectTeamFromText(teamCell?.text ?? '');
+        const colorTeam = classifyTeamPixels(extractTeamPixels(anchor.y, rowSpacing * 0.3));
+        const teamDetection: TeamDetection = textTeam.team ? textTeam : colorTeam;
+        const numericFields = ['kills', 'assists', 'damageDealt', 'damageTaken', 'healingDone'] as const;
+        const numericResults = Object.fromEntries(numericFields.map((field) => [
+          field,
+          cleanNumericCell(cellAtRow(field, anchor.y)?.text ?? ''),
+        ])) as Record<(typeof numericFields)[number], ReturnType<typeof cleanNumericCell>>;
+        const fieldConfidence: VerifiedParticipant['fieldConfidence'] = {
+          characterName: Math.round(nameCell?.confidence ?? 0),
+          team: teamDetection.confidence,
+        };
+        const warnings: string[] = [];
+        if (!characterName) warnings.push('Character name is missing or unreadable');
+        if (!teamDetection.team) warnings.push('Team could not be recognized');
+        for (const field of numericFields) {
+          const cell = cellAtRow(field, anchor.y);
+          const resultForField = numericResults[field];
+          fieldConfidence[field] = Math.round(cell?.confidence ?? 0);
+          if (resultForField.value === null) warnings.push(`${field} is missing or unreadable`);
+          else if (resultForField.corrected) warnings.push(`${field} used an OCR character correction`);
+          else if ((cell?.confidence ?? 0) < 65) warnings.push(`${field} has low OCR confidence`);
+        }
+        if (characterName && (nameCell?.confidence ?? 0) < 65) warnings.push('Character name has low OCR confidence');
+
+        const populatedFields =
+          1 +
+          (teamDetection.team ? 1 : 0) +
+          numericFields.filter((field) => numericResults[field].value !== null).length;
+        const confidence = Math.round(
+          Object.values(fieldConfidence).reduce((sum, value) => sum + (value ?? 0), 0) / 7,
+        );
+        participants.push({
+          characterName,
+          team: teamDetection.team,
+          mainWeapon: null,
+          offWeapon: null,
+          kills: numericResults.kills.value,
+          assists: numericResults.assists.value,
+          damageDealt: numericResults.damageDealt.value,
+          damageTaken: numericResults.damageTaken.value,
+          healingDone: numericResults.healingDone.value,
+          confidence,
+          fieldConfidence,
+          warnings,
+          confirmed: false,
+        });
+        Object.assign(participants.at(-1)!, { _populatedFields: populatedFields });
+      }
+
+      const candidateRows = participants.map((participant) => ({
+        characterName: participant.characterName,
+        populatedFields: (participant as VerifiedParticipant & { _populatedFields?: number })._populatedFields ?? 0,
+        confidence: participant.confidence,
+      }));
+      for (const participant of participants as Array<VerifiedParticipant & { _populatedFields?: number }>) {
+        delete participant._populatedFields;
+      }
+      const fieldConfidence = participants.length
+        ? participants.reduce((sum, participant) => sum + participant.confidence, 0) / participants.length
+        : 0;
+      candidates.push({
+        participants,
+        confidence: Math.round((fieldConfidence + result.data.confidence) / 2),
+        rawText: result.data.text,
+        preprocessing: mode,
+        _score: scoreExtractionCandidate(candidateRows, result.data.confidence),
+      } as ScoreboardExtraction & { _score: number });
     }
-    
-    const cleanNumber = (text: string) => {
-      const digits = text.replace(/[^\d]/g, '');
-      return digits.length > 0 ? Number(digits) : null;
-    };
-    
-    const cleanString = (text: string) => text.replace(/\s+/g, ' ').trim();
-    
-    const rankCells = (columnCells.rank ?? []).filter((cell) => cleanNumber(cell.text) !== null);
-    const rowAnchors = rankCells.length ? rankCells : (columnCells.name ?? []);
-    const rowSpacing = rowAnchors.length > 1
-      ? rowAnchors.slice(1).reduce((sum, cell, index) => sum + cell.y - rowAnchors[index].y, 0) / (rowAnchors.length - 1)
-      : scaledHeight / Math.max(1, rowAnchors.length);
-    const maximumDistance = Math.max(12, rowSpacing * 0.55);
-    const cellAtRow = (key: string, y: number) => {
-      const nearest = (columnCells[key] ?? []).reduce<DetectedCell | null>((best, cell) =>
-        !best || Math.abs(cell.y - y) < Math.abs(best.y - y) ? cell : best, null);
-      return nearest && Math.abs(nearest.y - y) <= maximumDistance ? nearest : null;
-    };
-    
-    const participants: VerifiedParticipant[] = [];
-    let confidenceSum = 0;
-    
-    for (const anchor of rowAnchors) {
-      const nameCell = cellAtRow('name', anchor.y);
-      const name = cleanString(nameCell?.text ?? '');
-      if (!name) continue;
-      
-      const teamCell = cellAtRow('team', anchor.y);
-      const teamText = cleanString(teamCell?.text ?? '').toLowerCase();
-      let team: TeamColor = TeamColor.BLUE;
-      if (teamText.includes('red')) team = TeamColor.RED;
-      if (teamText.includes('yellow') || teamText.includes('yel')) team = TeamColor.YELLOW;
-      
-      const kills = cleanNumber(cellAtRow('kills', anchor.y)?.text ?? '');
-      const assists = cleanNumber(cellAtRow('assists', anchor.y)?.text ?? '');
-      const damageDealt = cleanNumber(cellAtRow('damageDealt', anchor.y)?.text ?? '');
-      const damageTaken = cleanNumber(cellAtRow('damageTaken', anchor.y)?.text ?? '');
-      const healingDone = cleanNumber(cellAtRow('healingDone', anchor.y)?.text ?? '');
-      
-      let detectedFields = 1;
-      if (teamCell && /\b(blue|red|yellow|yel)/i.test(teamCell.text)) detectedFields++;
-      if (kills !== null) detectedFields++;
-      if (assists !== null) detectedFields++;
-      if (damageDealt !== null) detectedFields++;
-      if (damageTaken !== null) detectedFields++;
-      if (healingDone !== null) detectedFields++;
-      
-      const rowConfidence = Math.round((detectedFields / 7) * 100);
-      confidenceSum += rowConfidence;
-      
-      participants.push({
-        characterName: name,
-        team,
-        mainWeapon: null,
-        offWeapon: null,
-        kills,
-        assists,
-        damageDealt,
-        damageTaken,
-        healingDone,
-        confidence: rowConfidence,
-        confirmed: false,
-      });
-    }
-    
-    const fieldConfidence = participants.length > 0 ? confidenceSum / participants.length : 0;
-    return {
-      participants,
-      confidence: Math.round((fieldConfidence + result.data.confidence) / 2),
-      rawText: result.data.text,
-    };
+
+    onProgress(100);
+    const best = candidates.sort((left, right) =>
+      ((right as ScoreboardExtraction & { _score?: number })._score ?? 0) -
+      ((left as ScoreboardExtraction & { _score?: number })._score ?? 0),
+    )[0];
+    if (!best) return { participants: [], confidence: 0, rawText: '', preprocessing: 'original' };
+    delete (best as ScoreboardExtraction & { _score?: number })._score;
+    return best;
   } finally {
     await worker.terminate();
   }
@@ -353,6 +436,7 @@ export function parseScoreboardText(
     participants,
     confidence: Math.round((fieldConfidence + ocrConfidence) / 2),
     rawText,
+    preprocessing: 'original',
   };
 }
 
