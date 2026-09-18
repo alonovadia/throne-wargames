@@ -1,0 +1,5 @@
+- [Convex privileged write authentication](convex-privileged-auth.md) — privileged functions verify a digest of the Replit server secret because the deploy key cannot write Convex env vars.
+- [pnpm workspace normalization](pnpm-workspace-normalization.md) — filtered pnpm add can rewrite workspace YAML; preserve comments, security settings, and catalog ranges.
+- [Scoreboard upload lifecycle](scoreboard-upload-lifecycle.md) — persist scoreboards only during match commit and delete the object if the database write fails.
+- [Distributed public-write limits](distributed-public-write-limits.md) — production throttling must use shared durable state; process-local counters are only a disconnected-development fallback.
+- [Convex development sync permissions](convex-development-sync.md) — the workspace deploy key can fail function sync because it lacks deployment log-view permission.

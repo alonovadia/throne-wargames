@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Throne & Liberty Wargames"
+description = "A public ranked wargames platform for Throne and Liberty with story-led landing pages, live player analytics, class benchmarks, roster applications, and admin-only match management."
+version = "1.0.0"
+id = "artifacts/throne-wargames"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20046
+
+[services.development]
+run = "pnpm --filter @workspace/throne-wargames run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/throne-wargames", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/throne-wargames/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20046"
+BASE_PATH = "/"

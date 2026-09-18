@@ -1,0 +1,800 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Public read and admin write contract for Throne & Liberty Ranked Wargames.
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: public
+    description: Public read operations
+  - name: applications
+    description: Public roster application operations
+  - name: admin
+    description: Admin-only operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /overview:
+    get:
+      operationId: getOverview
+      tags: [public]
+      summary: Get public platform overview
+      responses:
+        "200":
+          description: Current public overview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Overview"
+  /leaderboards:
+    get:
+      operationId: getLeaderboards
+      tags: [public]
+      summary: Get class and player leaderboards
+      responses:
+        "200":
+          description: Ranked leaderboards
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaderboardResponse"
+  /players:
+    get:
+      operationId: getPlayers
+      tags: [public]
+      summary: Get public player directory
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Public player directory
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PlayerSummary"
+  /players/{playerId}:
+    get:
+      operationId: getPlayer
+      tags: [public]
+      summary: Get a player profile
+      parameters:
+        - name: playerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Player profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerProfile"
+        "404":
+          description: Player not found
+  /matches:
+    get:
+      operationId: getMatches
+      tags: [public]
+      summary: Get recent completed matches
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        "200":
+          description: Recent matches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MatchSummary"
+  /visitor-events:
+    post:
+      operationId: recordVisitor
+      tags: [public]
+      summary: Record an anonymous page visit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VisitorEventInput"
+      responses:
+        "204":
+          description: Visit recorded
+        "429":
+          description: Too many visit events
+  /applications:
+    post:
+      operationId: createApplication
+      tags: [applications]
+      summary: Submit a six-player roster application
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApplicationInput"
+      responses:
+        "201":
+          description: Application received
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicationReceipt"
+        "400":
+          description: Invalid roster application
+        "429":
+          description: Too many application attempts
+  /admin/summary:
+    get:
+      operationId: getAdminSummary
+      tags: [admin]
+      summary: Get admin analytics summary
+      responses:
+        "200":
+          description: Admin summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSummary"
+        "401":
+          description: Admin authentication required
+  /admin/applications:
+    get:
+      operationId: getAdminApplications
+      tags: [admin]
+      summary: List complete roster applications and their audit history
+      responses:
+        "200":
+          description: Roster applications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminApplication"
+        "401":
+          description: Admin authentication required
+  /admin/applications/{applicationId}/status:
+    patch:
+      operationId: updateApplicationStatus
+      tags: [admin]
+      summary: Approve, reject, or cancel a roster application
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApplicationStatusUpdate"
+      responses:
+        "200":
+          description: Updated application
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminApplication"
+        "401":
+          description: Admin authentication required
+        "404":
+          description: Application not found
+  /admin/matches:
+    get:
+      operationId: getAdminMatches
+      tags: [admin]
+      summary: List completed and discarded archive matches with audit history
+      responses:
+        "200":
+          description: Archive matches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminMatch"
+        "401":
+          description: Admin authentication required
+    post:
+      operationId: commitMatch
+      tags: [admin]
+      summary: Commit a verified scoreboard result
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MatchInput"
+      responses:
+        "201":
+          description: Match committed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchSummary"
+        "401":
+          description: Admin authentication required
+        "400":
+          description: Invalid match payload
+  /admin/matches/{matchId}/scoreboard:
+    get:
+      operationId: getMatchScoreboard
+      tags: [admin]
+      summary: Open the retained scoreboard for a committed match
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to a temporary scoreboard image URL
+        "401":
+          description: Admin authentication required
+        "404":
+          description: Match scoreboard not found
+  /admin/matches/{matchId}:
+    patch:
+      operationId: correctMatch
+      tags: [admin]
+      summary: Correct a match while retaining its prior state in the audit history
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MatchCorrection"
+      responses:
+        "200":
+          description: Corrected match
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminMatch"
+        "401":
+          description: Admin authentication required
+        "404":
+          description: Match not found
+    delete:
+      operationId: discardMatch
+      tags: [admin]
+      summary: Discard a match from public results while retaining its history
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuditedAction"
+      responses:
+        "200":
+          description: Discarded match
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminMatch"
+        "401":
+          description: Admin authentication required
+        "404":
+          description: Match not found
+  /admin/matches/{matchId}/restore:
+    post:
+      operationId: restoreMatch
+      tags: [admin]
+      summary: Restore a discarded match to public results and rankings
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuditedAction"
+      responses:
+        "200":
+          description: Restored match
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminMatch"
+        "401":
+          description: Admin authentication required
+        "404":
+          description: Match not found
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
+    Weapon:
+      type: string
+      enum:
+        - GREATSWORD
+        - DAGGER
+        - CROSSBOW
+        - LONGBOW
+        - STAFF
+        - WAND
+        - SWORD_AND_SHIELD
+    TeamColor:
+      type: string
+      enum: [BLUE, RED]
+    Overview:
+      type: object
+      properties:
+        totalMatches:
+          type: integer
+        totalPlayers:
+          type: integer
+        activeApplications:
+          type: integer
+        averageMatchLength:
+          type: [number, "null"]
+        latestMatch:
+          oneOf:
+            - $ref: "#/components/schemas/MatchSummary"
+            - type: "null"
+        momentum:
+          type: array
+          items:
+            $ref: "#/components/schemas/MomentumPoint"
+      required: [totalMatches, totalPlayers, activeApplications, averageMatchLength, latestMatch, momentum]
+    MomentumPoint:
+      type: object
+      properties:
+        label:
+          type: string
+        blue:
+          type: integer
+        red:
+          type: integer
+      required: [label, blue, red]
+    ClassSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        mainWeapon:
+          $ref: "#/components/schemas/Weapon"
+        offWeapon:
+          $ref: "#/components/schemas/Weapon"
+        totalMatches:
+          type: integer
+        winRate:
+          type: number
+        avgKills:
+          type: number
+        avgAssists:
+          type: number
+        avgDamage:
+          type: number
+        avgHealing:
+          type: number
+        trend:
+          type: number
+      required: [id, mainWeapon, offWeapon, totalMatches, winRate, avgKills, avgAssists, avgDamage, avgHealing, trend]
+    PlayerSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        characterName:
+          type: string
+        archetype:
+          type: string
+        matches:
+          type: integer
+        wins:
+          type: integer
+        winRate:
+          type: number
+        avgKills:
+          type: number
+        avgDamage:
+          type: number
+        form:
+          type: string
+      required: [id, characterName, archetype, matches, wins, winRate, avgKills, avgDamage, form]
+    PlayerProfile:
+      allOf:
+        - $ref: "#/components/schemas/PlayerSummary"
+        - type: object
+          properties:
+            avgAssists:
+              type: number
+            avgHealing:
+              type: number
+            records:
+              type: array
+              items:
+                $ref: "#/components/schemas/PersonalRecord"
+            weaponBreakdown:
+              type: array
+              items:
+                $ref: "#/components/schemas/ClassSummary"
+          required: [avgAssists, avgHealing, records, weaponBreakdown]
+    PersonalRecord:
+      type: object
+      properties:
+        label:
+          type: string
+        value:
+          type: number
+        achievedAt:
+          type: string
+      required: [label, value, achievedAt]
+    MatchParticipant:
+      type: object
+      properties:
+        playerId:
+          type: string
+        characterName:
+          type: string
+        team:
+          $ref: "#/components/schemas/TeamColor"
+        isWinner:
+          type: boolean
+        mainWeapon:
+          $ref: "#/components/schemas/Weapon"
+        offWeapon:
+          $ref: "#/components/schemas/Weapon"
+        kills:
+          type: integer
+        assists:
+          type: integer
+        damageDealt:
+          type: integer
+        healingDone:
+          type: integer
+      required: [playerId, characterName, team, isWinner, mainWeapon, offWeapon, kills, assists, damageDealt, healingDone]
+    MatchSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        matchDate:
+          type: string
+        winningTeam:
+          $ref: "#/components/schemas/TeamColor"
+        blueScore:
+          type: integer
+        redScore:
+          type: integer
+        note:
+          type: string
+        hasScreenshot:
+          type: boolean
+        participants:
+          type: array
+          items:
+            $ref: "#/components/schemas/MatchParticipant"
+      required: [id, matchDate, winningTeam, blueScore, redScore, note, hasScreenshot, participants]
+    LeaderboardResponse:
+      type: object
+      properties:
+        classes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassSummary"
+        players:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlayerSummary"
+      required: [classes, players]
+    ApplicationMemberInput:
+      type: object
+      properties:
+        characterName:
+          type: string
+          minLength: 2
+          maxLength: 40
+        mainWeapon:
+          $ref: "#/components/schemas/Weapon"
+        offWeapon:
+          $ref: "#/components/schemas/Weapon"
+      required: [characterName, mainWeapon, offWeapon]
+    VisitorEventInput:
+      type: object
+      properties:
+        path:
+          type: string
+          minLength: 1
+          maxLength: 160
+        referrer:
+          type: string
+          maxLength: 200
+      required: [path]
+    ApplicationInput:
+      type: object
+      properties:
+        groupName:
+          type: string
+          minLength: 2
+          maxLength: 80
+        captainName:
+          type: string
+          minLength: 2
+          maxLength: 40
+        captainContact:
+          type: string
+          minLength: 3
+          maxLength: 120
+        notes:
+          type: string
+          maxLength: 1000
+        submissionToken:
+          type: string
+          minLength: 16
+          maxLength: 100
+        formStartedAt:
+          type: integer
+          minimum: 0
+        website:
+          type: string
+          maxLength: 200
+        members:
+          type: array
+          minItems: 6
+          maxItems: 6
+          items:
+            $ref: "#/components/schemas/ApplicationMemberInput"
+      required: [groupName, captainName, captainContact, submissionToken, formStartedAt, website, members]
+    ApplicationReceipt:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+        message:
+          type: string
+      required: [id, status, message]
+    AuditRecord:
+      type: object
+      properties:
+        id:
+          type: string
+        action:
+          type: string
+        actor:
+          type: string
+        reason:
+          type: string
+        createdAt:
+          type: string
+      required: [id, action, actor, reason, createdAt]
+    ApplicationStatus:
+      type: string
+      enum: [PENDING, APPROVED, REJECTED, CANCELLED]
+    AdminApplicationMember:
+      allOf:
+        - $ref: "#/components/schemas/ApplicationMemberInput"
+        - type: object
+          properties:
+            playerId:
+              type: string
+          required: [playerId]
+    AdminApplication:
+      type: object
+      properties:
+        id:
+          type: string
+        groupName:
+          type: string
+        captainName:
+          type: string
+        captainContact:
+          type: string
+        notes:
+          type: string
+        status:
+          $ref: "#/components/schemas/ApplicationStatus"
+        createdAt:
+          type: string
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminApplicationMember"
+        audit:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditRecord"
+      required: [id, groupName, captainName, captainContact, notes, status, createdAt, members, audit]
+    ApplicationStatusUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [APPROVED, REJECTED, CANCELLED]
+        actor:
+          type: string
+          minLength: 2
+          maxLength: 80
+        reason:
+          type: string
+          minLength: 2
+          maxLength: 500
+      required: [status, actor, reason]
+    AuditedAction:
+      type: object
+      properties:
+        actor:
+          type: string
+          minLength: 2
+          maxLength: 80
+        reason:
+          type: string
+          minLength: 2
+          maxLength: 500
+      required: [actor, reason]
+    MatchParticipantInput:
+      type: object
+      properties:
+        characterName:
+          type: string
+        team:
+          $ref: "#/components/schemas/TeamColor"
+        mainWeapon:
+          $ref: "#/components/schemas/Weapon"
+        offWeapon:
+          $ref: "#/components/schemas/Weapon"
+        kills:
+          type: integer
+          minimum: 0
+        assists:
+          type: integer
+          minimum: 0
+        damageDealt:
+          type: integer
+          minimum: 0
+        healingDone:
+          type: integer
+          minimum: 0
+      required: [characterName, team, mainWeapon, offWeapon, kills, assists, damageDealt, healingDone]
+    MatchInput:
+      type: object
+      properties:
+        actor:
+          type: string
+          minLength: 2
+          maxLength: 80
+        matchDate:
+          type: string
+        winningTeam:
+          $ref: "#/components/schemas/TeamColor"
+        note:
+          type: string
+        screenshot:
+          type: object
+          properties:
+            name:
+              type: string
+              minLength: 1
+              maxLength: 255
+            contentType:
+              type: string
+              enum: [image/png, image/jpeg, image/webp]
+            base64:
+              type: string
+              minLength: 1
+          required: [name, contentType, base64]
+        participants:
+          type: array
+          minItems: 12
+          maxItems: 12
+          items:
+            $ref: "#/components/schemas/MatchParticipantInput"
+      required: [actor, winningTeam, screenshot, participants]
+    MatchCorrection:
+      type: object
+      properties:
+        matchDate:
+          type: string
+        winningTeam:
+          $ref: "#/components/schemas/TeamColor"
+        note:
+          type: string
+        participants:
+          type: array
+          minItems: 12
+          maxItems: 12
+          items:
+            $ref: "#/components/schemas/MatchParticipantInput"
+        actor:
+          type: string
+          minLength: 2
+          maxLength: 80
+        reason:
+          type: string
+          minLength: 2
+          maxLength: 500
+      required: [matchDate, winningTeam, note, participants, actor, reason]
+    AdminMatch:
+      allOf:
+        - $ref: "#/components/schemas/MatchSummary"
+        - type: object
+          properties:
+            status:
+              type: string
+              enum: [COMPLETED, DISCARDED]
+            audit:
+              type: array
+              items:
+                $ref: "#/components/schemas/AuditRecord"
+          required: [status, audit]
+    AdminSummary:
+      type: object
+      properties:
+        visitorsToday:
+          type: integer
+        visitorsThisWeek:
+          type: integer
+        applicationQueue:
+          type: integer
+        ocrConfidence:
+          type: [number, "null"]
+        activity:
+          type: array
+          items:
+            $ref: "#/components/schemas/MomentumPoint"
+      required: [visitorsToday, visitorsThisWeek, applicationQueue, ocrConfidence, activity]
