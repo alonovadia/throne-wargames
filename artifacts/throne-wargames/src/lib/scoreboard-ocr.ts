@@ -1,4 +1,4 @@
-import { createWorker, type LoggerMessage } from 'tesseract.js';
+import { createWorker, PSM, type LoggerMessage } from 'tesseract.js';
 import { TeamColor } from '@workspace/api-client-react';
 import {
   classifyTeamPixels,
@@ -72,6 +72,15 @@ export const defaultBoundaries: ColumnBoundary[] = [
 
 const minimumOcrEdge = 1920;
 const maximumOcrEdge = 3200;
+const numericOcrFields = new Set<OcrFieldKey>([
+  'rank',
+  'kills',
+  'assists',
+  'damageDealt',
+  'damageTaken',
+  'healingDone',
+]);
+const numericWhitelist = '0123456789OoQqIl|SsBbZzGgTt,.';
 
 const weaponAliases: Array<[RegExp, string]> = [
   [/\b(great\s*sword|gs)\b/i, 'GREATSWORD'],
@@ -165,6 +174,12 @@ export async function extractScoreboard(
   });
 
   try {
+    await worker.setParameters({
+      tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
+      preserve_interword_spaces: '1',
+      user_defined_dpi: '300',
+      tessedit_char_whitelist: '',
+    });
     const url = URL.createObjectURL(image);
     const img = new Image();
     img.src = url;
@@ -190,8 +205,11 @@ export async function extractScoreboard(
       targetColumns.includes(boundary.key as OcrFieldKey),
     );
     const stackInfo = columnsToOcr.map((col, index) => {
-      const colX = Math.round((col.start / 100) * scaledWidth);
-      const colW = Math.round(((col.end - col.start) / 100) * scaledWidth);
+      const padding = numericOcrFields.has(col.key) ? 0.9 : 0.55;
+      const start = Math.max(0, col.start - padding);
+      const end = Math.min(100, col.end + padding);
+      const colX = Math.round((start / 100) * scaledWidth);
+      const colW = Math.max(1, Math.round(((end - start) / 100) * scaledWidth));
       return { key: col.key, y: index * (scaledHeight + 20), h: scaledHeight, w: colW, colX };
     });
 
@@ -242,57 +260,89 @@ export async function extractScoreboard(
     const candidates: ScoreboardExtraction[] = [];
     for (const [passIndex, mode] of preprocessingModes.entries()) {
       activePass = passIndex;
-      const stackCanvas = document.createElement('canvas');
-      stackCanvas.width = Math.max(...stackInfo.map((info) => info.w));
-      stackCanvas.height = stackInfo.length * (scaledHeight + 20);
-      const context = stackCanvas.getContext('2d', { willReadFrequently: true });
-      if (!context) throw new Error('Could not create stacked OCR canvas');
-      context.fillStyle = 'black';
-      context.fillRect(0, 0, stackCanvas.width, stackCanvas.height);
+      const createStackBlob = async (
+        infos: Array<(typeof stackInfo)[number]>,
+        fillMode: typeof mode,
+      ) => {
+        const stackCanvas = document.createElement('canvas');
+        stackCanvas.width = Math.max(...infos.map((info) => info.w));
+        stackCanvas.height = infos.length * (scaledHeight + 20);
+        const context = stackCanvas.getContext('2d', { willReadFrequently: true });
+        if (!context) throw new Error('Could not create stacked OCR canvas');
+        context.fillStyle = 'black';
+        context.fillRect(0, 0, stackCanvas.width, stackCanvas.height);
 
-      for (const info of stackInfo) {
-        context.drawImage(sourceCanvas, info.colX, 0, info.w, scaledHeight, 0, info.y, info.w, info.h);
-      }
-      if (mode !== 'original') {
-        const imageData = context.getImageData(0, 0, stackCanvas.width, stackCanvas.height);
-        for (let index = 0; index < imageData.data.length; index += 4) {
-          const luminance =
-            imageData.data[index] * 0.2126 +
-            imageData.data[index + 1] * 0.7152 +
-            imageData.data[index + 2] * 0.0722;
-          const adjusted = mode === 'threshold'
-            ? (luminance >= 135 ? 255 : 0)
-            : Math.max(0, Math.min(255, (luminance - 110) * 1.75 + 128));
-          imageData.data[index] = adjusted;
-          imageData.data[index + 1] = adjusted;
-          imageData.data[index + 2] = adjusted;
+        for (const info of infos) {
+          context.drawImage(sourceCanvas, info.colX, 0, info.w, scaledHeight, 0, info.y, info.w, info.h);
         }
-        context.putImageData(imageData, 0, 0);
-      }
+        if (fillMode !== 'original') {
+          const imageData = context.getImageData(0, 0, stackCanvas.width, stackCanvas.height);
+          for (let index = 0; index < imageData.data.length; index += 4) {
+            const luminance =
+              imageData.data[index] * 0.2126 +
+              imageData.data[index + 1] * 0.7152 +
+              imageData.data[index + 2] * 0.0722;
+            const adjusted = fillMode === 'threshold'
+              ? (luminance >= 135 ? 255 : 0)
+              : Math.max(0, Math.min(255, (luminance - 110) * 1.75 + 128));
+            imageData.data[index] = adjusted;
+            imageData.data[index + 1] = adjusted;
+            imageData.data[index + 2] = adjusted;
+          }
+          context.putImageData(imageData, 0, 0);
+        }
 
-      const stackedBlob = await new Promise<Blob>((resolve, reject) => {
-        stackCanvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Failed to prepare OCR image')), 'image/png');
+        return await new Promise<Blob>((resolve, reject) => {
+          stackCanvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Failed to prepare stacked OCR image')), 'image/png');
+        });
+      };
+
+      const readCells = (
+        result: Awaited<ReturnType<typeof worker.recognize>>,
+        infos: Array<(typeof stackInfo)[number]>,
+      ) => {
+        const cells: Partial<Record<OcrFieldKey, DetectedCell[]>> = {};
+        for (const column of infos) cells[column.key] = [];
+        const lines = result.data.blocks?.flatMap((block) =>
+          block.paragraphs?.flatMap((paragraph) => paragraph.lines),
+        ) ?? [];
+        for (const line of lines) {
+          if (!line) continue;
+          const lineCenterY = line.bbox.y0 + (line.bbox.y1 - line.bbox.y0) / 2;
+          const matchingColumn = infos.find((column) =>
+            lineCenterY >= column.y && lineCenterY < column.y + column.h,
+          );
+          if (!matchingColumn) continue;
+          cells[matchingColumn.key]?.push({
+            key: matchingColumn.key,
+            text: line.text.trim(),
+            y: lineCenterY - matchingColumn.y,
+            confidence: line.confidence,
+          });
+        }
+        return cells;
+      };
+
+      const stackedBlob = await createStackBlob(stackInfo, mode);
+      await worker.setParameters({
+        tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
+        preserve_interword_spaces: '1',
+        tessedit_char_whitelist: '',
       });
       const result = await worker.recognize(stackedBlob, {}, { blocks: true, text: true });
-      const columnCells: Partial<Record<OcrFieldKey, DetectedCell[]>> = {};
-      for (const column of stackInfo) columnCells[column.key] = [];
+      const columnCells = readCells(result, stackInfo);
 
-      const lines = result.data.blocks?.flatMap((block) =>
-        block.paragraphs?.flatMap((paragraph) => paragraph.lines),
-      ) ?? [];
-      for (const line of lines) {
-        if (!line) continue;
-        const lineCenterY = line.bbox.y0 + (line.bbox.y1 - line.bbox.y0) / 2;
-        const matchingColumn = stackInfo.find((column) =>
-          lineCenterY >= column.y && lineCenterY < column.y + column.h,
-        );
-        if (!matchingColumn) continue;
-        columnCells[matchingColumn.key]?.push({
-          key: matchingColumn.key,
-          text: line.text.trim(),
-          y: lineCenterY - matchingColumn.y,
-          confidence: line.confidence,
-        });
+      const numericStackInfo = stackInfo.filter((info) => numericOcrFields.has(info.key));
+      const numericStackBlob = await createStackBlob(numericStackInfo, mode);
+      await worker.setParameters({
+        tessedit_pageseg_mode: PSM.SINGLE_COLUMN,
+        tessedit_char_whitelist: numericWhitelist,
+        preserve_interword_spaces: '0',
+      });
+      const numericResult = await worker.recognize(numericStackBlob, {}, { blocks: true, text: true });
+      const numericCells = readCells(numericResult, numericStackInfo);
+      for (const key of numericOcrFields) {
+        columnCells[key] = numericCells[key] ?? [];
       }
 
       const allCells = Object.values(columnCells).flat();
@@ -348,7 +398,7 @@ export async function extractScoreboard(
           (teamDetection.team ? 1 : 0) +
           numericFields.filter((field) => numericResults[field].value !== null).length;
         const confidence = Math.round(
-          Object.values(fieldConfidence).reduce((sum, value) => sum + (value ?? 0), 0) / 7,
+          Object.values(fieldConfidence).reduce((sum, value) => sum + (value ?? 0), 0) / 8,
         );
         participants.push({
           rank: rankResult.value,

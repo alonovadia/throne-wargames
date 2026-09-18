@@ -44,6 +44,10 @@ const numericConfusions: Record<string, string> = {
   S: '5',
   s: '5',
   B: '8',
+  Z: '2',
+  z: '2',
+  G: '6',
+  T: '7',
 };
 
 export function cleanNumericCell(text: string): NumericCellResult {
@@ -102,7 +106,7 @@ export function clusterRowAnchors(cells: DetectedCell[], tolerance: number): Row
     .filter((anchor) =>
       anchor.keys.includes('name') ||
       anchor.keys.includes('rank') ||
-      anchor.support >= 3,
+      anchor.support >= 2,
     );
 }
 
