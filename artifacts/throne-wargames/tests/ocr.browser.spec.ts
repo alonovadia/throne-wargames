@@ -6,7 +6,6 @@ import type { TeamColor } from '@workspace/api-client-react';
 import {
   evaluateCorpusCapture,
   type CorpusCapture,
-  type CorpusEvaluation,
 } from '../src/lib/scoreboard-ocr-corpus';
 
 const artifactRoot = path.resolve(import.meta.dirname, '..');
