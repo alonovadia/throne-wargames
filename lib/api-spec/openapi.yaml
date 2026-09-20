@@ -176,6 +176,32 @@ paths:
                 $ref: "#/components/schemas/AdminSummary"
         "401":
           description: Admin authentication required
+  /admin/ocr/enhance:
+    post:
+      operationId: enhanceScoreboardOcr
+      tags: [admin]
+      summary: Run optional external OCR on a scoreboard screenshot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScoreboardOcrInput"
+      responses:
+        "200":
+          description: External OCR suggestion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScoreboardOcrResponse"
+        "400":
+          description: Invalid scoreboard image
+        "401":
+          description: Admin authentication required
+        "502":
+          description: External OCR provider failed
+        "503":
+          description: External OCR is not configured
   /classes:
     get:
       operationId: getClasses
@@ -866,6 +892,35 @@ components:
           items:
             $ref: "#/components/schemas/MatchParticipantInput"
       required: [actor, winningTeam, screenshot, participants]
+    ScoreboardOcrInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        contentType:
+          type: string
+          enum: [image/png, image/jpeg, image/webp]
+        base64:
+          type: string
+          minLength: 1
+      required: [name, contentType, base64]
+    ScoreboardOcrResponse:
+      type: object
+      properties:
+        engine:
+          type: string
+          enum: [ocr-space]
+        text:
+          type: string
+        confidence:
+          type: ["number", "null"]
+        warnings:
+          type: array
+          items:
+            type: string
+      required: [engine, text, confidence, warnings]
     MatchCorrection:
       type: object
       properties:
