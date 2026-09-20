@@ -370,6 +370,10 @@ router.post("/admin/ocr/enhance", async (req, res, next) => {
     });
     if (!providerResponse.ok) {
       req.log.warn({ status: providerResponse.status }, "External OCR provider returned an error");
+      if (providerResponse.status === 401 || providerResponse.status === 403) {
+        res.status(503).json({ error: "The configured OCR.space API key was rejected. Update OCR_SPACE_API_KEY." });
+        return;
+      }
       res.status(502).json({ error: "Enhanced OCR provider failed." });
       return;
     }
