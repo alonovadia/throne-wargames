@@ -152,6 +152,16 @@ function parseLine(line: string, columnIndex: number, aliases = weaponAliases): 
   } as VerifiedParticipant & { _explicitTeam?: boolean };
 }
 
+function cleanRankCell(text: string) {
+  const compact = text.replace(/[\s,.'’`]/g, '');
+  if (/^n$/i.test(compact)) return { value: 11, corrected: true };
+  if (/^[lIaA|]+$/.test(compact) && compact.length <= 3) {
+    if (compact.length === 2) return { value: 11, corrected: true };
+    return { value: null, corrected: false };
+  }
+  return cleanNumericCell(text);
+}
+
 function splitScoreboardLine(line: string) {
   const numberMatches = [...line.matchAll(/\b\d[\d,.]*\b/g)];
   if (numberMatches.length < 8) return [line];
@@ -207,9 +217,9 @@ export async function extractScoreboard(
       targetColumns.includes(boundary.key as OcrFieldKey),
     );
     const stackInfo = columnsToOcr.map((col, index) => {
-      const padding = numericOcrFields.has(col.key) ? 0.9 : 0.55;
-      const start = Math.max(0, col.start - padding + (col.key === 'rank' ? 3 : 0));
-      const end = Math.min(100, col.end + padding);
+      const edgeMargin = col.key === 'rank' ? 3 : 0.65;
+      const start = Math.min(col.end - 0.1, Math.max(0, col.start + edgeMargin));
+      const end = Math.max(start + 0.1, Math.min(100, col.end - edgeMargin));
       const colX = Math.round((start / 100) * scaledWidth);
       const colW = Math.max(1, Math.round(((end - start) / 100) * scaledWidth));
       return { key: col.key, y: index * (scaledHeight + 20), h: scaledHeight, w: colW, colX };
@@ -353,9 +363,28 @@ export async function extractScoreboard(
       }
 
       const rowAnchorFields: OcrFieldKey[] = ['name', 'team', 'kills', 'assists', 'damageDealt'];
-      const allCells = rowAnchorFields.flatMap((key) => columnCells[key] ?? []);
+      const allCells = rowAnchorFields
+        .flatMap((key) => columnCells[key] ?? [])
+        .filter((cell) => cell.key !== 'name' || /[a-z0-9]/i.test(cell.text));
       const rowTolerance = Math.max(8, scaledHeight / 120);
-      const rowAnchors = clusterRowAnchors(allCells, rowTolerance);
+      const rawRowAnchors = clusterRowAnchors(allCells, rowTolerance);
+      const rawGaps = rawRowAnchors.slice(1).map((anchor, index) => anchor.y - rawRowAnchors[index].y);
+      const sortedGaps = [...rawGaps].sort((left, right) => left - right);
+      const dominantSpacing = sortedGaps.length
+        ? sortedGaps[Math.floor(sortedGaps.length / 2)]
+        : scaledHeight;
+      const rowAnchors = rawRowAnchors.reduce<typeof rawRowAnchors>((anchors, anchor) => {
+        const previous = anchors.at(-1);
+        if (!previous || anchor.y - previous.y >= dominantSpacing * 0.65) {
+          anchors.push(anchor);
+        } else if (
+          anchor.support > previous.support ||
+          (anchor.keys.includes('name') && !previous.keys.includes('name'))
+        ) {
+          anchors[anchors.length - 1] = anchor;
+        }
+        return anchors;
+      }, []);
       const rowSpacing = rowAnchors.length > 1
         ? rowAnchors.slice(1).reduce((sum, anchor, index) => sum + anchor.y - rowAnchors[index].y, 0) / (rowAnchors.length - 1)
         : scaledHeight / Math.max(1, rowAnchors.length);
@@ -366,13 +395,100 @@ export async function extractScoreboard(
         return nearest && Math.abs(nearest.y - y) <= maximumDistance ? nearest : null;
       };
 
+      const focusedNumericCells = new Map<string, { result: ReturnType<typeof cleanNumericCell>; confidence: number }>();
+      const rankInfo = stackInfo.find((info) => info.key === 'rank');
+      const focusedFields: OcrFieldKey[] = ['rank', 'kills', 'assists', 'damageDealt', 'damageTaken', 'healingDone'];
+      if (rankInfo && rowAnchors.length > 0) {
+        const cropHeight = Math.max(24, Math.min(scaledHeight, Math.round(rowSpacing * 0.72)));
+        const cropGap = 10;
+        const focusedInfos = focusedFields.flatMap((key) => {
+          const info = stackInfo.find((entry) => entry.key === key);
+          if (!info) return [];
+          return rowAnchors.map((anchor, rowIndex) => ({
+            key,
+            rowIndex,
+            colX: info.colX,
+            w: info.w,
+            sourceY: Math.max(0, Math.min(scaledHeight - cropHeight, Math.round(anchor.y - cropHeight / 2))),
+            destinationY: (focusedFields.indexOf(key) * rowAnchors.length + rowIndex) * (cropHeight + cropGap),
+          }));
+        });
+        const focusedCanvas = document.createElement('canvas');
+        focusedCanvas.width = Math.max(...focusedInfos.map((info) => info.w));
+        focusedCanvas.height = focusedFields.length * rowAnchors.length * (cropHeight + cropGap);
+        const focusedContext = focusedCanvas.getContext('2d', { willReadFrequently: true });
+        if (focusedContext) {
+          focusedContext.fillStyle = 'black';
+          focusedContext.fillRect(0, 0, focusedCanvas.width, focusedCanvas.height);
+          for (const info of focusedInfos) {
+            focusedContext.drawImage(
+              sourceCanvas,
+              info.colX,
+              info.sourceY,
+              info.w,
+              cropHeight,
+              0,
+              info.destinationY,
+              info.w,
+              cropHeight,
+            );
+          }
+          if (mode !== 'original') {
+            const imageData = focusedContext.getImageData(0, 0, focusedCanvas.width, focusedCanvas.height);
+            for (let index = 0; index < imageData.data.length; index += 4) {
+              const luminance =
+                imageData.data[index] * 0.2126 +
+                imageData.data[index + 1] * 0.7152 +
+                imageData.data[index + 2] * 0.0722;
+              const adjusted = mode === 'threshold'
+                ? (luminance >= 135 ? 255 : 0)
+                : Math.max(0, Math.min(255, (luminance - 110) * 1.75 + 128));
+              imageData.data[index] = adjusted;
+              imageData.data[index + 1] = adjusted;
+              imageData.data[index + 2] = adjusted;
+            }
+            focusedContext.putImageData(imageData, 0, 0);
+          }
+          const focusedBlob = await new Promise<Blob>((resolve, reject) => {
+            focusedCanvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Failed to prepare focused OCR image')), 'image/png');
+          });
+          await worker.setParameters({
+            tessedit_pageseg_mode: PSM.SINGLE_LINE,
+            tessedit_char_whitelist: numericWhitelist,
+            preserve_interword_spaces: '0',
+          });
+          const focusedResult = await worker.recognize(focusedBlob, {}, { blocks: true, text: true });
+          const focusedLines = focusedResult.data.blocks?.flatMap((block) =>
+            block.paragraphs?.flatMap((paragraph) => paragraph.lines),
+          ) ?? [];
+          for (const line of focusedLines) {
+            if (!line) continue;
+            const stripIndex = Math.floor(line.bbox.y0 / (cropHeight + cropGap));
+            const info = focusedInfos[stripIndex];
+            if (!info) continue;
+            const key = `${info.key}:${info.rowIndex}`;
+            const next = {
+              result: info.key === 'rank'
+                ? cleanRankCell(line.text.trim())
+                : cleanNumericCell(line.text.trim()),
+              confidence: line.confidence,
+            };
+            const previous = focusedNumericCells.get(key);
+            if (!previous || next.confidence > previous.confidence) focusedNumericCells.set(key, next);
+          }
+        }
+      }
+
       const participants: VerifiedParticipant[] = [];
       const weaponEvidence: Array<{ main: IconSignature; off: IconSignature } | null> = [];
-      for (const anchor of rowAnchors) {
+      for (const [rowIndex, anchor] of rowAnchors.entries()) {
         const nameCell = cellAtRow('name', anchor.y);
         const characterName = (nameCell?.text ?? '').replace(/\s+/g, ' ').trim();
         const rankCell = cellAtRow('rank', anchor.y);
-        const rankResult = cleanNumericCell(rankCell?.text ?? '');
+        const focusedRank = focusedNumericCells.get(`rank:${rowIndex}`);
+        const rankResult = focusedRank && (rankCell === null || focusedRank.confidence > (rankCell.confidence ?? 0))
+          ? focusedRank.result
+          : cleanRankCell(rankCell?.text ?? '');
 
         const teamCell = cellAtRow('team', anchor.y);
         const textTeam = detectTeamFromText(teamCell?.text ?? '');
@@ -381,7 +497,14 @@ export async function extractScoreboard(
         const numericFields = ['kills', 'assists', 'damageDealt', 'damageTaken', 'healingDone'] as const;
         const numericResults = Object.fromEntries(numericFields.map((field) => [
           field,
-          cleanNumericCell(cellAtRow(field, anchor.y)?.text ?? ''),
+          (() => {
+            const cell = cellAtRow(field, anchor.y);
+            const focused = focusedNumericCells.get(`${field}:${rowIndex}`);
+            if (focused && (cell === null || focused.confidence > (cell.confidence ?? 0) || focused.result.value === 0)) {
+              return focused.result;
+            }
+            return cleanNumericCell(cell?.text ?? '');
+          })(),
         ])) as Record<(typeof numericFields)[number], ReturnType<typeof cleanNumericCell>>;
         const fieldConfidence: VerifiedParticipant['fieldConfidence'] = {
           rank: Math.round(rankCell?.confidence ?? 0),
@@ -455,6 +578,71 @@ export async function extractScoreboard(
       ((left as ScoreboardExtraction & { _score?: number })._score ?? 0),
     )[0];
     if (!best) return { participants: [], confidence: 0, rawText: '', preprocessing: 'original', weaponEvidence: [] };
+    const fields: ParticipantField[] = [
+      'rank',
+      'characterName',
+      'team',
+      'kills',
+      'assists',
+      'damageDealt',
+      'damageTaken',
+      'healingDone',
+    ];
+    best.participants = best.participants.map((participant, rowIndex) => {
+      const merged = {
+        ...participant,
+        fieldConfidence: { ...participant.fieldConfidence },
+        warnings: [...participant.warnings],
+      };
+      const alternatives = candidates
+        .filter((candidate) => candidate !== best)
+        .map((candidate) => candidate.participants[rowIndex])
+        .filter((candidate): candidate is VerifiedParticipant => Boolean(candidate));
+      for (const field of fields) {
+        const current = merged[field];
+        const currentEmpty = current === null || current === '';
+        const currentConfidence = merged.fieldConfidence[field] ?? 0;
+        const alternative = alternatives
+          .filter((candidate) => {
+            const value = candidate[field];
+            return value !== null && value !== '' && (field !== 'team' || value !== null);
+          })
+          .sort((left, right) => (right.fieldConfidence[field] ?? 0) - (left.fieldConfidence[field] ?? 0))[0];
+        if (!alternative) continue;
+        const alternativeConfidence = alternative.fieldConfidence[field] ?? 0;
+        const hasCorrectionWarning = merged.warnings.some((warning) => warning.startsWith(field) && warning.includes('correction'));
+        if (currentEmpty || hasCorrectionWarning || alternativeConfidence > currentConfidence + 10) {
+          merged[field] = alternative[field] as never;
+          merged.fieldConfidence[field] = alternativeConfidence;
+          if (currentEmpty) {
+            const warning = `${field} was recovered from another OCR pass; verify it`;
+            if (!merged.warnings.includes(warning)) merged.warnings.push(warning);
+          }
+        }
+      }
+      return merged;
+    });
+    const observedOffsets = best.participants
+      .map((participant, index) => participant.rank === null ? null : participant.rank - index)
+      .filter((offset): offset is number => offset !== null);
+    if (observedOffsets.length >= 1) {
+      const offsetCounts = new Map<number, number>();
+      for (const offset of observedOffsets) offsetCounts.set(offset, (offsetCounts.get(offset) ?? 0) + 1);
+      const orderedOffset = [...offsetCounts.entries()].sort((left, right) => right[1] - left[1])[0];
+      if (orderedOffset && orderedOffset[1] >= 1) {
+        best.participants = best.participants.map((participant, index) => {
+          if (participant.rank !== null) return participant;
+          const inferredRank = index + orderedOffset[0];
+          if (inferredRank < 1) return participant;
+          return {
+            ...participant,
+            rank: inferredRank,
+            fieldConfidence: { ...participant.fieldConfidence, rank: 60 },
+            warnings: [...participant.warnings, 'Rank inferred from adjacent ordered rows'],
+          };
+        });
+      }
+    }
     delete (best as ScoreboardExtraction & { _score?: number })._score;
     return best;
   } finally {
