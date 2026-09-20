@@ -7,3 +7,4 @@
 - [Team size rules](team-size-rules.md) — signup squads are six players, while match scoreboards contain two larger teams of up to 48 players each.
 - [Scoreboard OCR reliability](ocr-reliability.md) — preserve incomplete rows and surface uncertainty instead of silently defaulting questionable OCR values.
 - [External OCR availability](external-ocr-availability.md) — third-party credentials can be rejected even when present; keep enhanced OCR optional and advisory.
+- [Playwright browser runtime](playwright-browser-runtime.md) — use the bounded system Chromium wrapper; never scan the huge Nix store during test startup.

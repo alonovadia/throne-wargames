@@ -208,7 +208,7 @@ export async function extractScoreboard(
     );
     const stackInfo = columnsToOcr.map((col, index) => {
       const padding = numericOcrFields.has(col.key) ? 0.9 : 0.55;
-      const start = Math.max(0, col.start - padding);
+      const start = Math.max(0, col.start - padding + (col.key === 'rank' ? 3 : 0));
       const end = Math.min(100, col.end + padding);
       const colX = Math.round((start / 100) * scaledWidth);
       const colW = Math.max(1, Math.round(((end - start) / 100) * scaledWidth));
@@ -334,7 +334,12 @@ export async function extractScoreboard(
       const result = await worker.recognize(stackedBlob, {}, { blocks: true, text: true });
       const columnCells = readCells(result, stackInfo);
 
-      const numericStackInfo = stackInfo.filter((info) => numericOcrFields.has(info.key));
+      const numericStackInfo = stackInfo
+        .filter((info) => numericOcrFields.has(info.key))
+        .map((info, index) => ({
+          ...info,
+          y: index * (scaledHeight + 20),
+        }));
       const numericStackBlob = await createStackBlob(numericStackInfo, mode);
       await worker.setParameters({
         tessedit_pageseg_mode: PSM.SINGLE_COLUMN,
@@ -347,7 +352,8 @@ export async function extractScoreboard(
         columnCells[key] = numericCells[key] ?? [];
       }
 
-      const allCells = Object.values(columnCells).flat();
+      const rowAnchorFields: OcrFieldKey[] = ['name', 'team', 'kills', 'assists', 'damageDealt'];
+      const allCells = rowAnchorFields.flatMap((key) => columnCells[key] ?? []);
       const rowTolerance = Math.max(8, scaledHeight / 120);
       const rowAnchors = clusterRowAnchors(allCells, rowTolerance);
       const rowSpacing = rowAnchors.length > 1

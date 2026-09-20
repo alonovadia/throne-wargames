@@ -1,48 +1,9 @@
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { defineConfig, devices } from '@playwright/test';
 
-const browserLibraries = [
-  'libglib-2.0.so.0',
-  'libgbm.so.1',
-  'libnss3.so',
-  'libnspr4.so',
-  'libatk-1.0.so.0',
-  'libcups.so.2',
-  'libdbus-1.so.3',
-  'libexpat.so.1',
-  'libfontconfig.so.1',
-  'libfreetype.so.6',
-  'libgdk_pixbuf-2.0.so.0',
-  'libgtk-3.so.0',
-  'libpango-1.0.so.0',
-  'libX11.so.6',
-  'libXcomposite.so.1',
-  'libXdamage.so.1',
-  'libXext.so.6',
-  'libXfixes.so.3',
-  'libXrandr.so.2',
-  'libxcb.so.1',
-];
-
-function exposeNixBrowserLibraries() {
-  const nixStore = '/nix/store';
-  if (!existsSync(nixStore)) return;
-  const libraryDirectories = new Set<string>();
-  for (const entry of readdirSync(nixStore)) {
-    const libraryDirectory = `${nixStore}/${entry}/lib`;
-    if (browserLibraries.some((library) => existsSync(`${libraryDirectory}/${library}`))) {
-      libraryDirectories.add(libraryDirectory);
-    }
-  }
-  if (libraryDirectories.size > 0) {
-    process.env.LD_LIBRARY_PATH = [
-      ...libraryDirectories,
-      process.env.LD_LIBRARY_PATH,
-    ].filter(Boolean).join(':');
-  }
-}
-
-exposeNixBrowserLibraries();
+const systemChromium = '/repl/tools/bin/chromium';
+const browserExecutable = process.env.OCR_TEST_BROWSER ??
+  (existsSync(systemChromium) ? systemChromium : undefined);
 
 export default defineConfig({
   testDir: './tests',
@@ -60,7 +21,10 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        ...(browserExecutable ? { launchOptions: { executablePath: browserExecutable } } : {}),
+      },
     },
   ],
   webServer: {

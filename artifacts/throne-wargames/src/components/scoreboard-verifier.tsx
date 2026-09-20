@@ -456,6 +456,7 @@ export function ScoreboardVerifier({
                 {participants.map((participant, index) => (
                   <tr
                     key={index}
+                    data-rank={participant.rank ?? ''}
                     title={participant.warnings.join(' · ') || 'No OCR warnings'}
                     className={`border-t border-border ${!participant.confirmed && (participant.warnings.length || participant.confidence < 80) ? 'bg-primary/5' : ''}`}
                   >

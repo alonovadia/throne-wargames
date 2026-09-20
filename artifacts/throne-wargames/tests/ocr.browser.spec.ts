@@ -21,9 +21,18 @@ const adminSummary = {
 };
 
 async function openScoreboardVerifier(page: Page) {
+  await page.addInitScript(() => {
+    sessionStorage.setItem('throne-admin-key', 'browser-ocr-test-key');
+    sessionStorage.setItem('throne-admin-actor', 'Browser OCR test');
+  });
   await page.route('**/api/admin/summary', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(adminSummary) }),
   );
+  for (const endpoint of ['applications', 'matches', 'classes']) {
+    await page.route(`**/api/admin/${endpoint}**`, (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
+    );
+  }
   await page.route('**/api/classes', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
   );
@@ -60,10 +69,9 @@ async function runBrowserOcr(page: Page, sourcePath: string) {
     rows.map((row) => {
       const inputValue = (selector: string) =>
         (row.querySelector(selector) as HTMLInputElement | HTMLSelectElement | null)?.value ?? '';
-      const firstCell = row.querySelector('td')?.textContent?.trim() ?? '';
       const title = row.getAttribute('title') ?? '';
       return {
-        rank: Number.parseInt(firstCell, 10) || null,
+        rank: Number.parseInt(row.getAttribute('data-rank') ?? '', 10) || null,
         characterName: inputValue('input[aria-label^="Character "]'),
         team: inputValue('select[aria-label^="Team "]') || null,
         kills: inputValue('input[aria-label^="kills "]'),
