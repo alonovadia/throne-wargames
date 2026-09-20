@@ -6,11 +6,14 @@ import {
   getGetMatchesQueryKey,
   TeamColor,
   useCommitMatch,
+  useEnhanceScoreboardOcr,
   useGetClasses,
 } from '@workspace/api-client-react';
 import type { MatchInput } from '@workspace/api-client-react';
 import {
   extractScoreboard,
+  mergeExternalOcr,
+  parseScoreboardText,
   readImageDimensions,
   defaultBoundaries,
   type ColumnBoundary,
@@ -47,12 +50,16 @@ export function ScoreboardVerifier({
   const [extracting, setExtracting] = useState(false);
   const [confidence, setConfidence] = useState<number | null>(null);
   const [preprocessing, setPreprocessing] = useState<string | null>(null);
+  const [ocrSource, setOcrSource] = useState<'local' | 'hybrid'>('local');
+  const [enhancementError, setEnhancementError] = useState('');
+  const [enhancing, setEnhancing] = useState(false);
   const [participants, setParticipants] = useState<VerifiedParticipant[]>([]);
   const [date, setDate] = useState('');
   const [winningTeam, setWinningTeam] = useState<TeamColor>(TeamColor.BLUE);
   const [note, setNote] = useState('');
   const [boundaries, setBoundaries] = useState<ColumnBoundary[]>(defaultBoundaries);
   const commitMutation = useCommitMatch({ request: adminRequest });
+  const enhanceOcrMutation = useEnhanceScoreboardOcr({ request: adminRequest });
   const classes = useGetClasses();
   const classOptions = classes.data ?? [];
   const queryClient = useQueryClient();
@@ -62,6 +69,8 @@ export function ScoreboardVerifier({
     setParticipants([]);
     setConfidence(null);
     setPreprocessing(null);
+    setOcrSource('local');
+    setEnhancementError('');
     setImageDimensions(null);
     if (!selected) return;
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(selected.type)) {
@@ -90,10 +99,52 @@ export function ScoreboardVerifier({
       setParticipants(result.participants);
       setConfidence(result.confidence);
       setPreprocessing(result.preprocessing);
+      setOcrSource('local');
     } catch {
       setError('OCR could not read this screenshot. Try a clean, uncropped scoreboard capture.');
     } finally {
       setExtracting(false);
+    }
+  };
+
+  const runEnhancedExtraction = async () => {
+    if (!file || enhancing) return;
+    setEnhancing(true);
+    setEnhancementError('');
+    try {
+      const response = await enhanceOcrMutation.mutateAsync({
+        data: {
+          name: file.name,
+          contentType: file.type as 'image/png' | 'image/jpeg' | 'image/webp',
+          base64: await fileToBase64(file),
+        },
+      });
+      const externalExtraction = parseScoreboardText(
+        response.text,
+        response.confidence ?? 0,
+        classOptions,
+      );
+      const localExtraction = {
+        participants,
+        confidence: confidence ?? 0,
+        rawText: '',
+        preprocessing: (preprocessing === 'contrast' || preprocessing === 'threshold'
+          ? preprocessing
+          : 'original') as 'original' | 'contrast' | 'threshold',
+        weaponEvidence: [],
+      };
+      const merged = mergeExternalOcr(localExtraction, externalExtraction);
+      setParticipants(merged.participants);
+      setConfidence(merged.confidence);
+      setOcrSource('hybrid');
+      if (response.warnings.length > 0) {
+        setEnhancementError(`External OCR returned warnings: ${response.warnings.join(' · ')}`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Enhanced OCR could not be completed.';
+      setEnhancementError(message);
+    } finally {
+      setEnhancing(false);
     }
   };
 
