@@ -37,6 +37,8 @@ import {
   UpdateClassResponse,
   DeleteClassParams,
   DeleteClassBody,
+  EnhanceScoreboardOcrBody,
+  EnhanceScoreboardOcrResponse,
 } from "@workspace/api-zod";
 import {
   createApplication,
@@ -317,6 +319,94 @@ router.get("/admin/summary", async (req, res, next) => {
     res.json(GetAdminSummaryResponse.parse(data));
   } catch (error) {
     next(error);
+  }
+});
+
+router.post("/admin/ocr/enhance", async (req, res, next) => {
+  if (!hasAdminAccess(req)) {
+    res.status(401).json({ error: "Admin authentication required" });
+    return;
+  }
+
+  const parsed = EnhanceScoreboardOcrBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid scoreboard image", details: parsed.error.flatten().fieldErrors });
+    return;
+  }
+
+  const apiKey = process.env.OCR_SPACE_API_KEY;
+  if (!apiKey) {
+    res.status(503).json({ error: "Enhanced OCR is not configured." });
+    return;
+  }
+
+  let imageBytes: Buffer;
+  try {
+    imageBytes = decodeScoreboard(parsed.data);
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : "Invalid scoreboard image." });
+    return;
+  }
+
+  try {
+    const form = new FormData();
+    form.append("apikey", apiKey);
+    form.append("language", "eng");
+    form.append("isOverlayRequired", "false");
+    form.append("detectOrientation", "true");
+    form.append("scale", "true");
+    form.append("OCREngine", "2");
+    form.append(
+      "file",
+      new Blob([imageBytes], { type: parsed.data.contentType }),
+      parsed.data.name,
+    );
+
+    const providerResponse = await fetch("https://api.ocr.space/parse/image", {
+      method: "POST",
+      body: form,
+    });
+    if (!providerResponse.ok) {
+      req.log.warn({ status: providerResponse.status }, "External OCR provider returned an error");
+      res.status(502).json({ error: "Enhanced OCR provider failed." });
+      return;
+    }
+
+    const payload = await providerResponse.json() as {
+      IsErroredOnProcessing?: boolean;
+      ErrorMessage?: string | string[];
+      ParsedResults?: Array<{ ParsedText?: string; ErrorMessage?: string }>;
+    };
+    const warnings = [
+      ...(Array.isArray(payload.ErrorMessage)
+        ? payload.ErrorMessage
+        : payload.ErrorMessage
+          ? [payload.ErrorMessage]
+          : []),
+      ...(payload.ParsedResults ?? [])
+        .map((result) => result.ErrorMessage)
+        .filter((message): message is string => Boolean(message)),
+    ];
+    const text = (payload.ParsedResults ?? [])
+      .map((result) => result.ParsedText ?? "")
+      .join("\n")
+      .trim();
+
+    if (payload.IsErroredOnProcessing || !text) {
+      req.log.warn({ warningCount: warnings.length }, "External OCR provider returned no usable text");
+      res.status(502).json({ error: "Enhanced OCR provider returned no usable text." });
+      return;
+    }
+
+    res.json(EnhanceScoreboardOcrResponse.parse({
+      engine: "ocr-space",
+      text,
+      confidence: null,
+      warnings,
+    }));
+  } catch (error) {
+    req.log.warn({ err: error }, "External OCR request failed");
+    res.status(502).json({ error: "Enhanced OCR provider failed." });
   }
 });
 

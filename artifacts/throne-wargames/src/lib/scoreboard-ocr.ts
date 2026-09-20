@@ -488,6 +488,89 @@ async function prepareImageForOcr(file: File): Promise<File | Blob> {
   }
 }
 
+const mergeableParticipantFields = [
+  'rank',
+  'characterName',
+  'team',
+  'kills',
+  'assists',
+  'damageDealt',
+  'damageTaken',
+  'healingDone',
+] as const;
+
+function normalizedParticipantName(value: string) {
+  return value.toLocaleLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function appendWarning(participant: VerifiedParticipant, warning: string) {
+  if (!participant.warnings.includes(warning)) participant.warnings.push(warning);
+}
+
+export function mergeExternalOcr(
+  local: ScoreboardExtraction,
+  external: ScoreboardExtraction,
+): ScoreboardExtraction {
+  if (!local.participants.length) {
+    return {
+      ...external,
+      participants: external.participants.map((participant) => ({
+        ...participant,
+        warnings: [...participant.warnings, 'Row supplied by external OCR; verify against the screenshot'],
+      })),
+      preprocessing: local.preprocessing,
+      weaponEvidence: local.weaponEvidence,
+    };
+  }
+
+  const participants = local.participants.map((localParticipant) => {
+    const externalParticipant = external.participants.find((candidate) =>
+      (localParticipant.rank !== null &&
+        candidate.rank !== null &&
+        localParticipant.rank === candidate.rank) ||
+      (normalizedParticipantName(localParticipant.characterName) &&
+        normalizedParticipantName(localParticipant.characterName) === normalizedParticipantName(candidate.characterName)),
+    );
+    if (!externalParticipant) return { ...localParticipant, warnings: [...localParticipant.warnings] };
+
+    const merged = {
+      ...localParticipant,
+      fieldConfidence: { ...localParticipant.fieldConfidence },
+      warnings: [...localParticipant.warnings],
+    };
+    for (const field of mergeableParticipantFields) {
+      const localValue = merged[field];
+      const externalValue = externalParticipant[field];
+      if ((localValue === null || (field === 'characterName' && localValue === '')) && externalValue !== null && externalValue !== '') {
+        merged[field] = externalValue as never;
+        if (field === 'characterName' || field === 'team') {
+          merged.fieldConfidence[field] = Math.min(60, merged.fieldConfidence[field] ?? 60);
+        } else if (field !== 'rank') {
+          merged.fieldConfidence[field] = Math.min(60, merged.fieldConfidence[field] ?? 60);
+        }
+        appendWarning(merged, `${field} was suggested by external OCR; verify it`);
+      } else if (
+        localValue !== null &&
+        localValue !== '' &&
+        externalValue !== null &&
+        externalValue !== '' &&
+        localValue !== externalValue
+      ) {
+        appendWarning(merged, `${field} disagrees with external OCR; verify it`);
+      }
+    }
+    return merged;
+  });
+
+  return {
+    ...local,
+    participants,
+    rawText: `${local.rawText}\n\n[External OCR]\n${external.rawText}`,
+    confidence: Math.min(local.confidence, external.confidence || local.confidence),
+    preprocessing: local.preprocessing,
+  };
+}
+
 export function parseScoreboardText(
   rawText: string,
   ocrConfidence: number,
