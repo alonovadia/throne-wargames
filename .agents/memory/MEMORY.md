@@ -6,3 +6,4 @@
 - [GitHub write access](github-write-access.md) — use the configured GitHub integration for repository writes when the HTTPS remote has no usable credential.
 - [Team size rules](team-size-rules.md) — signup squads are six players, while match scoreboards contain two larger teams of up to 48 players each.
 - [Scoreboard OCR reliability](ocr-reliability.md) — preserve incomplete rows and surface uncertainty instead of silently defaulting questionable OCR values.
+- [External OCR availability](external-ocr-availability.md) — third-party credentials can be rejected even when present; keep enhanced OCR optional and advisory.
