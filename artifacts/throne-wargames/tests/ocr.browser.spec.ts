@@ -127,6 +127,19 @@ for (const capture of corpus) {
     const rows = await runBrowserOcr(page, capture.sourcePath);
     const report = evaluateCorpusCapture(capture, toCorpusExtraction(rows));
     process.stdout.write(`[browser-ocr] ${capture.id}: ${report.matchedRows}/${report.expectedRows} rows, ${report.numericMismatches.length} numeric mismatches\n`);
+    if (process.env.OCR_DEBUG === '1') {
+      process.stdout.write(`[browser-ocr] ${capture.id} extracted: ${JSON.stringify(rows.map((row) => ({
+        rank: row.rank,
+        name: row.characterName,
+        team: row.team,
+        kills: row.kills,
+        assists: row.assists,
+        damage: row.damageDealt,
+        taken: row.damageTaken,
+        healing: row.healingDone,
+        warnings: row.warnings,
+      })))}\n`);
+    }
     assert.ok(report.passed, JSON.stringify({
       captureId: report.captureId,
       matchedRows: report.matchedRows,
