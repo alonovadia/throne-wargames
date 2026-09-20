@@ -356,6 +356,41 @@ export interface MatchInput {
   participants: MatchParticipantInput[];
 }
 
+export type ScoreboardOcrInputContentType = typeof ScoreboardOcrInputContentType[keyof typeof ScoreboardOcrInputContentType];
+
+
+export const ScoreboardOcrInputContentType = {
+  'image/png': 'image/png',
+  'image/jpeg': 'image/jpeg',
+  'image/webp': 'image/webp',
+} as const;
+
+export interface ScoreboardOcrInput {
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  name: string;
+  contentType: ScoreboardOcrInputContentType;
+  /** @minLength 1 */
+  base64: string;
+}
+
+export type ScoreboardOcrResponseEngine = typeof ScoreboardOcrResponseEngine[keyof typeof ScoreboardOcrResponseEngine];
+
+
+export const ScoreboardOcrResponseEngine = {
+  'ocr-space': 'ocr-space',
+} as const;
+
+export interface ScoreboardOcrResponse {
+  engine: ScoreboardOcrResponseEngine;
+  text: string;
+  /** @nullable */
+  confidence: number | null;
+  warnings: string[];
+}
+
 export interface MatchCorrection {
   matchDate: string;
   winningTeam: TeamColor;

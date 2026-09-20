@@ -323,6 +323,28 @@ export const GetAdminSummaryResponse = zod.object({
 
 
 /**
+ * @summary Run optional external OCR on a scoreboard screenshot
+ */
+export const enhanceScoreboardOcrBodyNameMax = 255;
+
+
+
+
+export const EnhanceScoreboardOcrBody = zod.object({
+  "name": zod.string().min(1).max(enhanceScoreboardOcrBodyNameMax),
+  "contentType": zod.enum(['image/png', 'image/jpeg', 'image/webp']),
+  "base64": zod.string().min(1)
+})
+
+export const EnhanceScoreboardOcrResponse = zod.object({
+  "engine": zod.enum(['ocr-space']),
+  "text": zod.string(),
+  "confidence": zod.number().nullable(),
+  "warnings": zod.array(zod.string())
+})
+
+
+/**
  * @summary List active classes available for new entries
  */
 export const getClassesResponseKeyMax = 80;
