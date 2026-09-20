@@ -393,6 +393,24 @@ export function ScoreboardVerifier({
             {extracting ? <LoaderCircle size={15} className="animate-spin" /> : <ScanLine size={15} />}
             {extracting ? `Reading scoreboard ${progress}%` : 'Extract scoreboard'}
           </button>
+          {participants.length > 0 ? (
+            <div className="mt-3 border border-primary/30 bg-primary/5 p-3">
+              <button
+                type="button"
+                disabled={enhancing || extracting}
+                onClick={() => void runEnhancedExtraction()}
+                className="inline-flex w-full items-center justify-center gap-2 border border-primary/60 px-4 py-3 text-xs font-bold uppercase tracking-[0.13em] text-primary transition-colors hover:bg-primary hover:text-primary-foreground disabled:opacity-50"
+                data-testid="button-enhance-ocr"
+              >
+                {enhancing ? <LoaderCircle size={15} className="animate-spin" /> : <ScanLine size={15} />}
+                {enhancing ? 'Checking with enhanced OCR' : 'Try enhanced OCR'}
+              </button>
+              <p className="mt-2 text-[10px] leading-5 text-muted-foreground">
+                Sends this screenshot to the configured external OCR provider. Missing fields may be suggested; disagreements remain flagged for review.
+              </p>
+              {enhancementError ? <p className="mt-2 text-xs text-primary">{enhancementError}</p> : null}
+            </div>
+          ) : null}
         </div>
         <div className="border border-border bg-background/35 p-5">
           <div className="flex items-start justify-between gap-4">
@@ -405,6 +423,7 @@ export function ScoreboardVerifier({
                 <div className="mt-2 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
                   {participants.filter((participant) => !participant.confirmed && participant.warnings.length > 0).length} rows need attention
                   {preprocessing ? ` · ${preprocessing} image pass selected` : ''}
+                  {ocrSource === 'hybrid' ? ' · external suggestions merged' : ''}
                 </div>
               ) : null}
             </div>

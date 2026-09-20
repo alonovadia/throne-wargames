@@ -356,9 +356,11 @@ router.post("/admin/ocr/enhance", async (req, res, next) => {
     form.append("detectOrientation", "true");
     form.append("scale", "true");
     form.append("OCREngine", "2");
+    const imageBuffer = new Uint8Array(imageBytes.byteLength);
+    imageBuffer.set(imageBytes);
     form.append(
       "file",
-      new Blob([imageBytes], { type: parsed.data.contentType }),
+      new Blob([imageBuffer.buffer], { type: parsed.data.contentType }),
       parsed.data.name,
     );
 
