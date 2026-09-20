@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { TeamColor } from '@workspace/api-client-react';
-import { parseScoreboardText } from './scoreboard-ocr.ts';
+import { mergeExternalOcr, parseScoreboardText } from './scoreboard-ocr.ts';
 
 type Fixture = {
   sourceResolution: '1920x1080' | '2560x1440';
@@ -97,4 +97,36 @@ test('parses five stats and explicit YELLOW team color from raw text lines', () 
   assert.equal(p2.damageDealt, 3000);
   assert.equal(p2.damageTaken, 2000);
   assert.equal(p2.healingDone, 1000);
+});
+
+test('does not infer positional teams for external OCR text', () => {
+  const extraction = parseScoreboardText(
+    'Milio 1 2 3,000 4,000 5,000',
+    90,
+    [],
+    { inferTeams: false },
+  );
+
+  assert.equal(extraction.participants.length, 1);
+  assert.equal(extraction.participants[0].team, null);
+});
+
+test('merges external suggestions without overwriting local values', () => {
+  const local = parseScoreboardText(
+    'Milio 141 140 9,945,289 2,798,420 90,970',
+    90,
+    [],
+    { inferTeams: false },
+  );
+  const external = parseScoreboardText(
+    'Milio Yellow 141 999 9,945,289 2,798,420 90,970',
+    90,
+    [],
+    { inferTeams: false },
+  );
+
+  const merged = mergeExternalOcr(local, external);
+  assert.equal(merged.participants[0].assists, 140);
+  assert.equal(merged.participants[0].team, TeamColor.YELLOW);
+  assert.ok(merged.participants[0].warnings.some((warning) => warning.includes('assists disagrees')));
 });

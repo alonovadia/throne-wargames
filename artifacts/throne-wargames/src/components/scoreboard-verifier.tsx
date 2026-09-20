@@ -123,6 +123,7 @@ export function ScoreboardVerifier({
         response.text,
         response.confidence ?? 0,
         classOptions,
+        { inferTeams: false },
       );
       const localExtraction = {
         participants,

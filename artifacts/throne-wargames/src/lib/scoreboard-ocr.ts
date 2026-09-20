@@ -575,7 +575,9 @@ export function parseScoreboardText(
   rawText: string,
   ocrConfidence: number,
   classes: Array<{ key: string; aliases: string[] }> = [],
+  options: { inferTeams?: boolean } = {},
 ): ScoreboardExtraction {
+  const inferTeams = options.inferTeams ?? true;
   const aliases: Array<[RegExp, string]> = classes.length
     ? classes.flatMap((entry) => entry.aliases.length ? entry.aliases.map((alias) => [new RegExp(`\\b${alias.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\b`, 'i'), entry.key] as [RegExp, string]) : [[new RegExp(`\\b${entry.key.replaceAll('_', '[ _-]')}\\b`, 'i'), entry.key] as [RegExp, string]])
     : weaponAliases;
@@ -592,12 +594,16 @@ export function parseScoreboardText(
   const rightColumn = rowsByLine.map((rows) => rows[1]).filter(Boolean) as (VerifiedParticipant & { _explicitTeam?: boolean })[];
   const participants = rightColumn.length > 0
     ? [
-        ...leftColumn.slice(0, 48).map((entry) => ({ ...entry, team: entry._explicitTeam ? entry.team : TeamColor.BLUE })),
-        ...rightColumn.slice(0, 48).map((entry) => ({ ...entry, team: entry._explicitTeam ? entry.team : TeamColor.RED })),
+        ...leftColumn.slice(0, 48).map((entry) => ({ ...entry, team: entry._explicitTeam ? entry.team : inferTeams ? TeamColor.BLUE : null })),
+        ...rightColumn.slice(0, 48).map((entry) => ({ ...entry, team: entry._explicitTeam ? entry.team : inferTeams ? TeamColor.RED : null })),
       ]
     : leftColumn.slice(0, 96).map((entry, index, rows) => ({
         ...entry,
-        team: entry._explicitTeam ? entry.team : (index < Math.ceil(rows.length / 2) ? TeamColor.BLUE : TeamColor.RED),
+        team: entry._explicitTeam
+          ? entry.team
+          : inferTeams
+            ? (index < Math.ceil(rows.length / 2) ? TeamColor.BLUE : TeamColor.RED)
+            : null,
       }));
       
   // remove _explicitTeam from output
