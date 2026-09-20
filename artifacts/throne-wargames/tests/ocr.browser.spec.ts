@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import type { TeamColor } from '@workspace/api-client-react';
@@ -10,8 +10,8 @@ import {
 } from '../src/lib/scoreboard-ocr-corpus';
 
 const artifactRoot = path.resolve(import.meta.dirname, '..');
-const attachedAssetsRoot = path.resolve(artifactRoot, '../../attached_assets');
 const corpusPath = path.resolve(artifactRoot, 'src/lib/__fixtures__/scoreboard-ocr-corpus.json');
+const corpus = JSON.parse(readFileSync(corpusPath, 'utf8')) as CorpusCapture[];
 
 const adminSummary = {
   visitorsToday: 0,
@@ -38,9 +38,24 @@ async function runBrowserOcr(page: Page, sourcePath: string) {
   const panel = page.getByTestId('panel-commit-match');
   await panel.getByTestId('input-scoreboard-file').setInputFiles(path.resolve(artifactRoot, '..', '..', sourcePath));
   await expect(panel.getByTestId('button-run-ocr')).toBeEnabled();
-  await panel.getByTestId('button-run-ocr').click();
-  await expect(panel.getByTestId('button-run-ocr')).toHaveText('Extract scoreboard', { timeout: 180_000 });
-  await expect(panel.getByText(/rows extracted for operator review/)).toBeVisible();
+  const runButton = panel.getByTestId('button-run-ocr');
+  let lastProgress = '';
+  const progressTimer = setInterval(() => {
+    void runButton.textContent().then((text) => {
+      const normalized = text?.trim() ?? '';
+      if (normalized && normalized !== lastProgress) {
+        lastProgress = normalized;
+        process.stdout.write(`[browser-ocr] ${normalized}\n`);
+      }
+    }).catch(() => undefined);
+  }, 5_000);
+  try {
+    await runButton.click();
+    await expect(runButton).toHaveText('Extract scoreboard', { timeout: 180_000 });
+    await expect(panel.getByText(/rows extracted for operator review/)).toBeVisible();
+  } finally {
+    clearInterval(progressTimer);
+  }
 
   return panel.locator('tbody tr').evaluateAll((rows) =>
     rows.map((row) => {
@@ -88,11 +103,8 @@ function toCorpusExtraction(rows: Awaited<ReturnType<typeof runBrowserOcr>>) {
   };
 }
 
-async function loadCorpus() {
-  return JSON.parse(await readFile(corpusPath, 'utf8')) as CorpusCapture[];
-}
-
 test('runs real browser OCR on a supplied scoreboard image', async ({ page }) => {
+  test.setTimeout(240_000);
   await openScoreboardVerifier(page);
   const rows = await runBrowserOcr(page, 'attached_assets/1_1789717015998.png');
 
@@ -100,30 +112,24 @@ test('runs real browser OCR on a supplied scoreboard image', async ({ page }) =>
   expect(rows.some((row) => row.kills !== '' && row.damageDealt !== '')).toBe(true);
 });
 
-test('benchmarks real browser OCR against the supplied labeled corpus', async ({ page }) => {
-  test.setTimeout(600_000);
-  const corpus = await loadCorpus();
-  const reports: CorpusEvaluation[] = [];
-
-  for (const capture of corpus) {
+for (const capture of corpus) {
+  test(`benchmarks browser OCR: ${capture.id}`, async ({ page }) => {
+    test.setTimeout(240_000);
+    process.stdout.write(`[browser-ocr] ${capture.id}: starting\n`);
     await openScoreboardVerifier(page);
     const rows = await runBrowserOcr(page, capture.sourcePath);
     const report = evaluateCorpusCapture(capture, toCorpusExtraction(rows));
-    reports.push(report);
-    await page.reload();
-  }
-
-  assert.ok(reports.length > 0);
-  const failures = reports.filter((report) => !report.passed).map((report) => ({
-    captureId: report.captureId,
-    matchedRows: report.matchedRows,
-    expectedRows: report.expectedRows,
-    missingRows: report.missingRows,
-    extraRows: report.extraRows,
-    nameMismatches: report.nameMismatches.length,
-    teamMismatches: report.teamMismatches.length,
-    numericMismatches: report.numericMismatches.length,
-    uncertainRows: report.uncertainRows,
-  }));
-  expect(failures, JSON.stringify(failures, null, 2)).toEqual([]);
-});
+    process.stdout.write(`[browser-ocr] ${capture.id}: ${report.matchedRows}/${report.expectedRows} rows, ${report.numericMismatches.length} numeric mismatches\n`);
+    assert.ok(report.passed, JSON.stringify({
+      captureId: report.captureId,
+      matchedRows: report.matchedRows,
+      expectedRows: report.expectedRows,
+      missingRows: report.missingRows,
+      extraRows: report.extraRows,
+      nameMismatches: report.nameMismatches.length,
+      teamMismatches: report.teamMismatches.length,
+      numericMismatches: report.numericMismatches.length,
+      uncertainRows: report.uncertainRows,
+    }, null, 2));
+  });
+}

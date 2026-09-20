@@ -9,6 +9,8 @@
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "test:unit": "TZ=Asia/Jerusalem pnpm exec tsx --test ./src/lib/*.test.ts",
     "test:browser": "playwright test --config=playwright.config.ts",
+    "test:browser:smoke": "playwright test --config=playwright.config.ts --grep \"runs real browser OCR on a supplied scoreboard image\"",
+    "test:browser:corpus": "playwright test --config=playwright.config.ts --grep \"benchmarks browser OCR\"",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
