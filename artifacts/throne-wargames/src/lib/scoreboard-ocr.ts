@@ -93,7 +93,9 @@ const weaponAliases: Array<[RegExp, string]> = [
 ];
 
 function parseLine(line: string, columnIndex: number, aliases = weaponAliases): VerifiedParticipant | null {
-  const numbers = [...line.matchAll(/\b\d[\d,.]*\b/g)].map((match) =>
+  const leadingRank = /^\s*(\d{1,3})(?=\s|$)/.exec(line);
+  const lineWithoutLeadingRank = leadingRank ? line.slice(leadingRank[0].length).trim() : line;
+  const numbers = [...lineWithoutLeadingRank.matchAll(/\b\d[\d,.]*\b/g)].map((match) =>
     Number(match[0].replace(/[,.]/g, '')),
   );
   if (numbers.length < 4) return null;
@@ -101,10 +103,10 @@ function parseLine(line: string, columnIndex: number, aliases = weaponAliases): 
   const weapons = aliases
     .filter(([pattern]) => pattern.test(line))
     .map(([, weapon]) => weapon);
-  const firstNumberAt = line.search(/\b\d[\d,.]*\b/);
-  const nameRegion = (firstNumberAt >= 0 ? line.slice(0, firstNumberAt) : line)
+  const firstNumberAt = lineWithoutLeadingRank.search(/\b\d[\d,.]*\b/);
+  const nameRegion = (firstNumberAt >= 0 ? lineWithoutLeadingRank.slice(0, firstNumberAt) : lineWithoutLeadingRank)
     .replace(new RegExp(aliases.map(([pattern]) => pattern.source).join('|'), 'gi'), ' ')
-    .replace(/[|:_[\]()/\\-]+/g, ' ')
+    .replace(/[|:*+_[\]()/\\-]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
   
@@ -132,7 +134,7 @@ function parseLine(line: string, columnIndex: number, aliases = weaponAliases): 
 
   const detectedFields = 5 + Math.min(weapons.length, 2);
   return {
-    rank: null,
+    rank: leadingRank ? Number(leadingRank[1]) : null,
     characterName,
     team,
     mainWeapon: weapons[0] ?? null,

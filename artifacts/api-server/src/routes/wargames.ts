@@ -73,6 +73,100 @@ function privilegedConvexArgs(args: Record<string, unknown> = {}) {
 
 const maxScoreboardBytes = 8 * 1024 * 1024;
 
+type OcrSpaceWord = {
+  WordText?: string;
+  Left?: number;
+  Top?: number;
+};
+
+type OcrSpaceLine = {
+  LineText?: string;
+  MinTop?: number;
+  Words?: OcrSpaceWord[];
+};
+
+type OcrSpacePayload = {
+  IsErroredOnProcessing?: boolean;
+  ErrorMessage?: string | string[];
+  ParsedResults?: Array<{
+    ParsedText?: string;
+    ErrorMessage?: string;
+    TextOverlay?: { Lines?: OcrSpaceLine[] };
+  }>;
+};
+
+function reconstructOcrSpaceRows(payload: OcrSpacePayload) {
+  const result = payload.ParsedResults?.[0];
+  const overlayLines = result?.TextOverlay?.Lines ?? [];
+  const words = overlayLines.flatMap((line) => line.Words ?? [])
+    .filter((word): word is OcrSpaceWord & { WordText: string; Left: number; Top: number } =>
+      typeof word.WordText === "string" &&
+      typeof word.Left === "number" &&
+      typeof word.Top === "number",
+    );
+  if (!words.length) return result?.ParsedText?.trim() ?? "";
+
+  const teamWords = words.filter((word) => /^(blue|red|yellow)$/i.test(word.WordText.trim()));
+  const numericWords = words.filter((word) => /^[0-9][\d,.]*$/.test(word.WordText.trim()));
+  const teamLeft = teamWords.length
+    ? teamWords.reduce((sum, word) => sum + word.Left, 0) / teamWords.length
+    : Math.min(...numericWords.map((word) => word.Left));
+  const nameCandidates = words.filter((word) =>
+    word.Left < teamLeft &&
+    !/^(blue|red|yellow)$/i.test(word.WordText.trim()) &&
+    !/^[0-9][\d,.]*$/.test(word.WordText.trim()),
+  );
+  const nameColumns: Array<{ start: number; end: number; center: number }> = [];
+  for (const word of [...nameCandidates].sort((left, right) => left.Left - right.Left)) {
+    const column = nameColumns.at(-1);
+    if (column && word.Left - column.end <= 80) {
+      column.end = Math.max(column.end, word.Left);
+      column.center = (column.start + column.end) / 2;
+    } else {
+      nameColumns.push({ start: word.Left, end: word.Left, center: word.Left });
+    }
+  }
+  const nameColumn = [...nameColumns].sort((left, right) => right.center - left.center)[0];
+
+  const rows: Array<{ top: number; words: typeof words }> = [];
+  for (const word of words) {
+    const row = rows.find((candidate) => Math.abs(candidate.top - word.Top) <= 12);
+    if (row) row.words.push(word);
+    else rows.push({ top: word.Top, words: [word] });
+  }
+
+  return rows
+    .sort((left, right) => left.top - right.top)
+    .map((row) => {
+      const rankWord = row.words
+        .filter((word) =>
+          word.Left < (nameColumn?.start ?? teamLeft) &&
+          /^[0-9]{1,3}$/.test(word.WordText.trim()),
+        )
+        .sort((left, right) => left.Left - right.Left)[0];
+      const rowTeam = row.words.find((word) => /^(blue|red|yellow)$/i.test(word.WordText.trim()));
+      const name = row.words
+        .filter((word) =>
+          nameColumn &&
+          word.Left >= nameColumn.start - 20 &&
+          word.Left <= nameColumn.end + 80 &&
+          !/^(blue|red|yellow)$/i.test(word.WordText.trim()) &&
+          !/^[0-9][\d,.]*$/.test(word.WordText.trim()),
+        )
+        .sort((left, right) => left.Left - right.Left)
+        .map((word) => word.WordText)
+        .join(" ");
+      const stats = row.words
+        .filter((word) => word.Left > teamLeft && /^[0-9][\d,.]*$/.test(word.WordText.trim()))
+        .sort((left, right) => left.Left - right.Left)
+        .map((word) => word.WordText)
+        .join(" ");
+      return [rankWord?.WordText, name, rowTeam?.WordText, stats].filter(Boolean).join(" ");
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
 async function consumePublicWriteLimit(
   req: Request,
   scope: string,
@@ -352,7 +446,7 @@ router.post("/admin/ocr/enhance", async (req, res, next) => {
     const form = new FormData();
     form.append("apikey", apiKey);
     form.append("language", "eng");
-    form.append("isOverlayRequired", "false");
+    form.append("isOverlayRequired", "true");
     form.append("detectOrientation", "true");
     form.append("scale", "true");
     form.append("OCREngine", "2");
@@ -378,11 +472,7 @@ router.post("/admin/ocr/enhance", async (req, res, next) => {
       return;
     }
 
-    const payload = await providerResponse.json() as {
-      IsErroredOnProcessing?: boolean;
-      ErrorMessage?: string | string[];
-      ParsedResults?: Array<{ ParsedText?: string; ErrorMessage?: string }>;
-    };
+    const payload = await providerResponse.json() as OcrSpacePayload;
     const warnings = [
       ...(Array.isArray(payload.ErrorMessage)
         ? payload.ErrorMessage
@@ -393,10 +483,7 @@ router.post("/admin/ocr/enhance", async (req, res, next) => {
         .map((result) => result.ErrorMessage)
         .filter((message): message is string => Boolean(message)),
     ];
-    const text = (payload.ParsedResults ?? [])
-      .map((result) => result.ParsedText ?? "")
-      .join("\n")
-      .trim();
+    const text = reconstructOcrSpaceRows(payload);
 
     if (payload.IsErroredOnProcessing || !text) {
       req.log.warn({ warningCount: warnings.length }, "External OCR provider returned no usable text");
