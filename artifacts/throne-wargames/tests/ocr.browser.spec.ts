@@ -42,9 +42,12 @@ async function openScoreboardVerifier(page: Page) {
   await expect(page.getByTestId('panel-commit-match')).toBeVisible();
 }
 
-async function runBrowserOcr(page: Page, sourcePath: string) {
+async function runBrowserOcr(page: Page, sourcePath: string | string[]) {
   const panel = page.getByTestId('panel-commit-match');
-  await panel.getByTestId('input-scoreboard-file').setInputFiles(path.resolve(artifactRoot, '..', '..', sourcePath));
+  const sourcePaths = Array.isArray(sourcePath) ? sourcePath : [sourcePath];
+  await panel.getByTestId('input-scoreboard-file').setInputFiles(
+    sourcePaths.map((source) => path.resolve(artifactRoot, '..', '..', source)),
+  );
   await expect(panel.getByTestId('button-run-ocr')).toBeEnabled();
   const runButton = panel.getByTestId('button-run-ocr');
   let lastProgress = '';
@@ -117,6 +120,33 @@ test('runs real browser OCR on a supplied scoreboard image', async ({ page }) =>
 
   expect(rows.length).toBeGreaterThan(0);
   expect(rows.some((row) => row.kills !== '' && row.damageDealt !== '')).toBe(true);
+});
+
+test('merges overlapping screenshots in the operator flow without auto-confirming rows', async ({ page }) => {
+  test.setTimeout(360_000);
+  await openScoreboardVerifier(page);
+  const panel = page.getByTestId('panel-commit-match');
+  const input = panel.getByTestId('input-scoreboard-file');
+  await input.setInputFiles([
+    path.resolve(artifactRoot, '..', '..', 'attached_assets/2_1789951192954.png'),
+    path.resolve(artifactRoot, '..', '..', 'attached_assets/image_1789717406320.png'),
+  ]);
+
+  await expect(panel.getByText('2 screenshots selected')).toBeVisible();
+  await expect(panel.getByText(/2_1789951192954\.png is the archived source image/)).toBeVisible();
+  await expect(panel.getByText(/All 2 selected screenshots contribute to OCR/)).toBeVisible();
+
+  const rows = await runBrowserOcr(page, [
+    'attached_assets/2_1789951192954.png',
+    'attached_assets/image_1789717406320.png',
+  ]);
+
+  expect(rows.length).toBeGreaterThan(0);
+  await expect(panel.getByText(/2 screenshots merged/)).toBeVisible();
+  await expect(panel.getByText(/duplicate rows removed/)).toBeVisible();
+  expect(await panel.locator('input[type="checkbox"][aria-label^="Confirm row "]').evaluateAll(
+    (checkboxes) => checkboxes.filter((checkbox) => (checkbox as HTMLInputElement).checked).length,
+  )).toBe(0);
 });
 
 for (const capture of corpus) {
