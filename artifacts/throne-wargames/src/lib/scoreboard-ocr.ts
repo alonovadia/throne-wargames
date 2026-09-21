@@ -676,10 +676,15 @@ export async function extractScoreboard(
         });
       }
     }
-    delete best._score;
-    delete best._rowAnchors;
-    delete best._columnCells;
-    return best;
+    const completed = best as ScoreboardExtraction & {
+      _score?: number;
+      _rowAnchors?: number[];
+      _columnCells?: Partial<Record<OcrFieldKey, DetectedCell[]>>;
+    };
+    delete completed._score;
+    delete completed._rowAnchors;
+    delete completed._columnCells;
+    return completed;
   } finally {
     await worker.terminate();
   }
