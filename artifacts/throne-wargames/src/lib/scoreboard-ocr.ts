@@ -739,6 +739,114 @@ function normalizedParticipantName(value: string) {
   return value.toLocaleLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+const participantMergeFields = [
+  'rank',
+  'characterName',
+  'team',
+  'mainWeapon',
+  'offWeapon',
+  'kills',
+  'assists',
+  'damageDealt',
+  'damageTaken',
+  'healingDone',
+] as const;
+
+type ParticipantMergeField = typeof participantMergeFields[number];
+
+function isEmptyParticipantField(value: VerifiedParticipant[ParticipantMergeField]) {
+  return value === null || (typeof value === 'string' && value.trim() === '');
+}
+
+function participantFieldConfidence(
+  participant: VerifiedParticipant,
+  field: ParticipantMergeField,
+) {
+  if (field === 'mainWeapon' || field === 'offWeapon') return participant.confidence;
+  return participant.fieldConfidence[field] ?? participant.confidence;
+}
+
+function mergeDuplicateParticipant(
+  current: VerifiedParticipant,
+  incoming: VerifiedParticipant,
+): VerifiedParticipant {
+  const merged: VerifiedParticipant = {
+    ...current,
+    fieldConfidence: { ...current.fieldConfidence },
+    warnings: [...current.warnings],
+    confirmed: false,
+  };
+
+  for (const field of participantMergeFields) {
+    const currentValue = merged[field];
+    const incomingValue = incoming[field];
+    if (isEmptyParticipantField(currentValue) && !isEmptyParticipantField(incomingValue)) {
+      merged[field] = incomingValue as never;
+      continue;
+    }
+    if (
+      !isEmptyParticipantField(currentValue) &&
+      !isEmptyParticipantField(incomingValue) &&
+      participantFieldConfidence(incoming, field) > participantFieldConfidence(merged, field) + 5
+    ) {
+      merged[field] = incomingValue as never;
+    }
+    if (field !== 'mainWeapon' && field !== 'offWeapon') {
+      const currentConfidence = merged.fieldConfidence[field] ?? 0;
+      const incomingConfidence = incoming.fieldConfidence[field] ?? 0;
+      if (incomingConfidence > currentConfidence) {
+        merged.fieldConfidence[field] = incomingConfidence;
+      }
+    }
+  }
+
+  merged.confidence = Math.max(current.confidence, incoming.confidence);
+  for (const warning of incoming.warnings) appendWarning(merged, warning);
+  return merged;
+}
+
+function participantIdentityKey(participant: VerifiedParticipant, fallback: string) {
+  if (participant.rank !== null) return `rank:${participant.rank}`;
+  const name = normalizedParticipantName(participant.characterName);
+  return name ? `name:${name}` : fallback;
+}
+
+export function mergeOcrParticipants(extractions: ScoreboardExtraction[]) {
+  const participants: VerifiedParticipant[] = [];
+  const indexes = new Map<string, number>();
+  let duplicateCount = 0;
+
+  extractions.forEach((extraction, extractionIndex) => {
+    extraction.participants.forEach((participant, participantIndex) => {
+      const key = participantIdentityKey(
+        participant,
+        `unkeyed:${extractionIndex}:${participantIndex}`,
+      );
+      const existingIndex = indexes.get(key);
+      if (existingIndex === undefined) {
+        indexes.set(key, participants.length);
+        participants.push({ ...participant, warnings: [...participant.warnings] });
+        return;
+      }
+
+      duplicateCount += 1;
+      participants[existingIndex] = mergeDuplicateParticipant(
+        participants[existingIndex],
+        participant,
+      );
+    });
+  });
+
+  participants.sort((left, right) => {
+    if (left.rank === null && right.rank === null) return 0;
+    if (left.rank === null) return 1;
+    if (right.rank === null) return -1;
+    return left.rank - right.rank;
+  });
+
+  return { participants, duplicateCount };
+}
+
 function appendWarning(participant: VerifiedParticipant, warning: string) {
   if (!participant.warnings.includes(warning)) participant.warnings.push(warning);
 }

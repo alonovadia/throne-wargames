@@ -12,6 +12,7 @@ import {
 import type { MatchInput } from '@workspace/api-client-react';
 import {
   extractScoreboard,
+  mergeOcrParticipants,
   mergeExternalOcr,
   parseScoreboardText,
   readImageDimensions,
@@ -42,7 +43,8 @@ export function ScoreboardVerifier({
   onCommitted: (matchId: string, participantCount: number) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const file = files[0] ?? null;
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const [error, setError] = useState('');
@@ -54,6 +56,7 @@ export function ScoreboardVerifier({
   const [enhancementError, setEnhancementError] = useState('');
   const [enhancing, setEnhancing] = useState(false);
   const [participants, setParticipants] = useState<VerifiedParticipant[]>([]);
+  const [duplicateRows, setDuplicateRows] = useState(0);
   const [date, setDate] = useState('');
   const [winningTeam, setWinningTeam] = useState<TeamColor>(TeamColor.BLUE);
   const [note, setNote] = useState('');
@@ -64,41 +67,61 @@ export function ScoreboardVerifier({
   const classOptions = classes.data ?? [];
   const queryClient = useQueryClient();
 
-  const chooseFile = async (selected: File | undefined) => {
+  const chooseFiles = async (selected: File[]) => {
     setError('');
     setParticipants([]);
+    setDuplicateRows(0);
     setConfidence(null);
     setPreprocessing(null);
     setOcrSource('local');
     setEnhancementError('');
     setImageDimensions(null);
-    if (!selected) return;
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(selected.type)) {
+    if (!selected.length) {
+      setFiles([]);
+      return;
+    }
+    if (selected.some((candidate) => !['image/png', 'image/jpeg', 'image/webp'].includes(candidate.type))) {
       setError('Use a PNG, JPEG, or WebP scoreboard screenshot.');
       return;
     }
-    const dimensions = await readImageDimensions(selected);
+    const dimensions = await readImageDimensions(selected[0]);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setFile(selected);
+    setFiles(selected);
     setImageDimensions(dimensions);
-    setPreviewUrl(URL.createObjectURL(selected));
+    setPreviewUrl(URL.createObjectURL(selected[0]));
   };
 
   const runExtraction = async () => {
-    if (!file) return;
+    if (!files.length) return;
     setExtracting(true);
     setProgress(0);
     setError('');
     try {
-      const result = await extractScoreboard(file, setProgress, classOptions, boundaries);
+      const extractions = [];
+      for (const [index, sourceFile] of files.entries()) {
+        const result = await extractScoreboard(
+          sourceFile,
+          (currentProgress) =>
+            setProgress(Math.round(((index * 100) + currentProgress) / files.length)),
+          classOptions,
+          boundaries,
+        );
+        extractions.push(result);
+      }
+      const merged = mergeOcrParticipants(extractions);
+      const averageConfidence = Math.round(
+        extractions.reduce((sum, extraction) => sum + extraction.confidence, 0) / extractions.length,
+      );
       trackEvent('scoreboard_extracted', {
-        row_count: result.participants.length,
-        ocr_confidence: result.confidence,
-        preprocessing: result.preprocessing,
+        row_count: merged.participants.length,
+        source_count: files.length,
+        duplicate_rows_removed: merged.duplicateCount,
+        ocr_confidence: averageConfidence,
       });
-      setParticipants(result.participants);
-      setConfidence(result.confidence);
-      setPreprocessing(result.preprocessing);
+      setParticipants(merged.participants);
+      setDuplicateRows(merged.duplicateCount);
+      setConfidence(averageConfidence);
+      setPreprocessing(extractions.map((extraction) => extraction.preprocessing).join(' + '));
       setOcrSource('local');
     } catch {
       setError('OCR could not read this screenshot. Try a clean, uncropped scoreboard capture.');

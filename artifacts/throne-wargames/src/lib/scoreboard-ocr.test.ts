@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { TeamColor } from '@workspace/api-client-react';
-import { mergeExternalOcr, parseScoreboardText } from './scoreboard-ocr.ts';
+import { mergeExternalOcr, mergeOcrParticipants, parseScoreboardText } from './scoreboard-ocr.ts';
 
 type Fixture = {
   sourceResolution: '1920x1080' | '2560x1440';
@@ -129,4 +129,25 @@ test('merges external suggestions without overwriting local values', () => {
   assert.equal(merged.participants[0].assists, 140);
   assert.equal(merged.participants[0].team, TeamColor.YELLOW);
   assert.ok(merged.participants[0].warnings.some((warning) => warning.includes('assists disagrees')));
+});
+
+test('merges overlapping screenshots by rank without duplicating players', () => {
+  const first = parseScoreboardText(
+    '11 LandaHans Red 63 123 4,187,002 1,717,347 0\n12 Clown31 Red 62 103 3,779,834 2,946,397 67,155',
+    90,
+    [],
+    { inferTeams: false },
+  );
+  const second = parseScoreboardText(
+    '11 LandaHans Red 63 123 4,187,002 1,717,347 0\n13 Bojii Red 60 60 3,522,964 1,351,074 0',
+    90,
+    [],
+    { inferTeams: false },
+  );
+
+  const merged = mergeOcrParticipants([first, second]);
+
+  assert.equal(merged.participants.length, 3);
+  assert.equal(merged.duplicateCount, 1);
+  assert.deepEqual(merged.participants.map((participant) => participant.rank), [11, 12, 13]);
 });
