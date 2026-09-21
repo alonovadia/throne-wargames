@@ -565,6 +565,11 @@ router.post("/admin/matches", async (req, res, next) => {
     return;
   }
   const input = CommitMatchBody.parse(req.body);
+  const parsedMatchDate = input.matchDate ? Date.parse(input.matchDate) : null;
+  if (input.matchDate && !Number.isFinite(parsedMatchDate)) {
+    res.status(400).json({ error: "Invalid match date" });
+    return;
+  }
   let uploadedStorageId: string | null = null;
   try {
     if (isConvexConfigured) {
@@ -586,11 +591,11 @@ router.post("/admin/matches", async (req, res, next) => {
         throw new Error("The scoreboard upload did not return a storage identifier.");
       }
       uploadedStorageId = uploaded.storageId;
-      const { screenshot: _screenshot, ...matchInput } = input;
+      const { screenshot: _screenshot, matchDate: _matchDate, ...matchInput } = input;
       const result = await convexMutation<string>("admin:commitMatch", {
         ...privilegedConvexArgs(matchInput),
         screenshotStorageId: uploadedStorageId,
-        ...(input.matchDate ? { matchDate: Date.parse(input.matchDate) } : {}),
+        ...(parsedMatchDate !== null ? { matchDate: parsedMatchDate } : {}),
       });
       uploadedStorageId = null;
       const committed = await convexQuery("public:matchById", { matchId: result });

@@ -270,9 +270,14 @@ export function ScoreboardVerifier({
       setError('Confirm all rows against the screenshot before commit.');
       return;
     }
+    const normalizedMatchDate = date ? new Date(date) : null;
+    if (normalizedMatchDate && !Number.isFinite(normalizedMatchDate.getTime())) {
+      setError('Enter a valid match date before commit.');
+      return;
+    }
     const payload: MatchInput = {
       actor,
-      matchDate: date || undefined,
+      matchDate: normalizedMatchDate ? normalizedMatchDate.toISOString() : undefined,
       winningTeam,
       note: note || undefined,
       screenshot: {
