@@ -1,5 +1,5 @@
 import { AlertTriangle, CheckCircle2, ImageUp, LoaderCircle, ScanLine, Plus, Trash2 } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   getGetAdminSummaryQueryKey,
@@ -18,6 +18,7 @@ import {
   readImageDimensions,
   defaultBoundaries,
   type ColumnBoundary,
+  type ScoreboardExtraction,
   type VerifiedParticipant,
 } from '@/lib/scoreboard-ocr';
 import { trackEvent } from '@/lib/analytics';
@@ -73,11 +74,13 @@ export function ScoreboardVerifier({
     setDuplicateRows(0);
     setConfidence(null);
     setPreprocessing(null);
+    setProgress(0);
     setOcrSource('local');
     setEnhancementError('');
     setImageDimensions(null);
     if (!selected.length) {
       setFiles([]);
+      setPreviewUrl('');
       return;
     }
     if (selected.some((candidate) => !['image/png', 'image/jpeg', 'image/webp'].includes(candidate.type))) {
@@ -85,11 +88,16 @@ export function ScoreboardVerifier({
       return;
     }
     const dimensions = await readImageDimensions(selected[0]);
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
     setFiles(selected);
     setImageDimensions(dimensions);
     setPreviewUrl(URL.createObjectURL(selected[0]));
   };
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
   const runExtraction = async () => {
     if (!files.length) return;
@@ -131,24 +139,11 @@ export function ScoreboardVerifier({
   };
 
   const runEnhancedExtraction = async () => {
-    if (!file || enhancing) return;
+    if (!files.length || enhancing) return;
     setEnhancing(true);
     setEnhancementError('');
     try {
-      const response = await enhanceOcrMutation.mutateAsync({
-        data: {
-          name: file.name,
-          contentType: file.type as 'image/png' | 'image/jpeg' | 'image/webp',
-          base64: await fileToBase64(file),
-        },
-      });
-      const externalExtraction = parseScoreboardText(
-        response.text,
-        response.confidence ?? 0,
-        classOptions,
-        { inferTeams: false },
-      );
-      const localExtraction = {
+      let mergedExtraction: ScoreboardExtraction = {
         participants,
         confidence: confidence ?? 0,
         rawText: '',
@@ -157,12 +152,32 @@ export function ScoreboardVerifier({
           : 'original') as 'original' | 'contrast' | 'threshold',
         weaponEvidence: [],
       };
-      const merged = mergeExternalOcr(localExtraction, externalExtraction);
-      setParticipants(merged.participants);
-      setConfidence(merged.confidence);
+      const warnings: string[] = [];
+      for (const [index, sourceFile] of files.entries()) {
+        setEnhancementError(`Checking screenshot ${index + 1} of ${files.length}…`);
+        const response = await enhanceOcrMutation.mutateAsync({
+          data: {
+            name: sourceFile.name,
+            contentType: sourceFile.type as 'image/png' | 'image/jpeg' | 'image/webp',
+            base64: await fileToBase64(sourceFile),
+          },
+        });
+        const externalExtraction = parseScoreboardText(
+          response.text,
+          response.confidence ?? 0,
+          classOptions,
+          { inferTeams: false },
+        );
+        mergedExtraction = mergeExternalOcr(mergedExtraction, externalExtraction);
+        warnings.push(...response.warnings);
+      }
+      setParticipants(mergedExtraction.participants);
+      setConfidence(mergedExtraction.confidence);
       setOcrSource('hybrid');
-      if (response.warnings.length > 0) {
-        setEnhancementError(`External OCR returned warnings: ${response.warnings.join(' · ')}`);
+      if (warnings.length > 0) {
+        setEnhancementError(`External OCR returned warnings: ${warnings.join(' · ')}`);
+      } else {
+        setEnhancementError('');
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Enhanced OCR could not be completed.';
@@ -351,23 +366,47 @@ export function ScoreboardVerifier({
             data-testid="button-upload-scoreboard"
           >
             <ImageUp className="text-primary" />
-            <span className="mt-4 text-sm font-bold">{file ? file.name : 'Choose scoreboard screenshot'}</span>
+            <span className="mt-4 text-sm font-bold">
+              {files.length
+                ? `${files.length} screenshot${files.length === 1 ? '' : 's'} selected`
+                : 'Choose scoreboard screenshots'}
+            </span>
             <span className="mt-2 font-mono text-[9px] uppercase tracking-[0.13em] text-muted-foreground">
-              PNG, JPEG, or WebP · any screenshot size
+              PNG, JPEG, or WebP · select overlapping captures together
             </span>
           </button>
           <input
             ref={inputRef}
             type="file"
             accept="image/png,image/jpeg,image/webp"
+            multiple
             className="sr-only"
-            onChange={(event) => void chooseFile(event.target.files?.[0])}
+            onChange={(event) => void chooseFiles(Array.from(event.target.files ?? []))}
             data-testid="input-scoreboard-file"
           />
+          {files.length ? (
+            <div className="mt-3 border border-border bg-muted/20 p-3">
+              <div className="font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                {file?.name} is the archived source image
+              </div>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                All {files.length} selected screenshots contribute to OCR. The current match record stores only the first image.
+              </p>
+              {files.length > 1 ? (
+                <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                  {files.map((selectedFile, index) => (
+                    <li key={`${selectedFile.name}-${selectedFile.lastModified}-${index}`} className="truncate">
+                      {index + 1}. {selectedFile.name}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
           {previewUrl ? (
             <div className="mt-3 w-full border border-border">
               <div className="relative">
-                <img src={previewUrl} alt="Scoreboard awaiting OCR" className="block w-full h-auto" />
+                <img src={previewUrl} alt="First scoreboard screenshot awaiting OCR" className="block w-full h-auto" />
                 {boundaries.map((boundary) => (
                   <div
                     key={boundary.key}
@@ -432,10 +471,10 @@ export function ScoreboardVerifier({
                 data-testid="button-enhance-ocr"
               >
                 {enhancing ? <LoaderCircle size={15} className="animate-spin" /> : <ScanLine size={15} />}
-                {enhancing ? 'Checking with enhanced OCR' : 'Try enhanced OCR'}
+                {enhancing ? 'Checking selected screenshots' : 'Try enhanced OCR'}
               </button>
               <p className="mt-2 text-[10px] leading-5 text-muted-foreground">
-                Sends this screenshot to the configured external OCR provider. Missing fields may be suggested; disagreements remain flagged for review.
+                Sends each selected screenshot to the configured external OCR provider. Missing fields may be suggested; disagreements remain flagged for review.
               </p>
               {enhancementError ? <p className="mt-2 text-xs text-primary">{enhancementError}</p> : null}
             </div>
@@ -452,6 +491,8 @@ export function ScoreboardVerifier({
                 <div className="mt-2 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
                   {participants.filter((participant) => !participant.confirmed && participant.warnings.length > 0).length} rows need attention
                   {preprocessing ? ` · ${preprocessing} image pass selected` : ''}
+                   {files.length > 1 ? ` · ${files.length} screenshots merged` : ''}
+                   {duplicateRows > 0 ? ` · ${duplicateRows} duplicate ${duplicateRows === 1 ? 'row' : 'rows'} removed` : ''}
                   {ocrSource === 'hybrid' ? ' · external suggestions merged' : ''}
                 </div>
               ) : null}
