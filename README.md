@@ -15,7 +15,7 @@ managed by authorized administrators.
 - Rank players by their match results
 - Compare weapon combinations and player performance
 - Open a player profile with match history, averages, and personal records
-- Accept applications from complete six-player groups
+- Accept applications from complete Guild Roster followed by Statics.
 
 The public archive starts empty. It does not create sample players, matches, or
 statistics.
