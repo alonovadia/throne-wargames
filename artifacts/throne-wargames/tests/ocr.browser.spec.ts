@@ -21,6 +21,11 @@ const adminSummary = {
 };
 
 async function openScoreboardVerifier(page: Page) {
+  if (process.env.OCR_DEBUG === '1') {
+    page.on('console', (message) => {
+      if (message.text().startsWith('[ocr-debug]')) process.stdout.write(`${message.text()}\n`);
+    });
+  }
   await page.addInitScript(() => {
     sessionStorage.setItem('throne-admin-key', 'browser-ocr-test-key');
     sessionStorage.setItem('throne-admin-actor', 'Browser OCR test');

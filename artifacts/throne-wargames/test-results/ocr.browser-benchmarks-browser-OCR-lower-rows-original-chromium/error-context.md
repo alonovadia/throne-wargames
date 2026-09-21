@@ -7,7 +7,7 @@
 # Test info
 
 - Name: ocr.browser.spec.ts >> benchmarks browser OCR: lower-rows-original
-- Location: tests/ocr.browser.spec.ts:124:3
+- Location: tests/ocr.browser.spec.ts:129:3
 
 # Error details
 
@@ -534,118 +534,118 @@ AssertionError: {
 # Test source
 
 ```ts
-  31  |   );
-  32  |   for (const endpoint of ['applications', 'matches', 'classes']) {
-  33  |     await page.route(`**/api/admin/${endpoint}**`, (route) =>
-  34  |       route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
-  35  |     );
-  36  |   }
-  37  |   await page.route('**/api/classes', (route) =>
-  38  |     route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
-  39  |   );
-  40  |   await page.goto('/admin');
-  41  |   await expect(page.getByTestId('button-open-commit')).toBeVisible();
-  42  |   await page.getByTestId('button-open-commit').click();
-  43  |   await expect(page.getByTestId('panel-commit-match')).toBeVisible();
-  44  | }
-  45  | 
-  46  | async function runBrowserOcr(page: Page, sourcePath: string) {
-  47  |   const panel = page.getByTestId('panel-commit-match');
-  48  |   await panel.getByTestId('input-scoreboard-file').setInputFiles(path.resolve(artifactRoot, '..', '..', sourcePath));
-  49  |   await expect(panel.getByTestId('button-run-ocr')).toBeEnabled();
-  50  |   const runButton = panel.getByTestId('button-run-ocr');
-  51  |   let lastProgress = '';
-  52  |   const progressTimer = setInterval(() => {
-  53  |     void runButton.textContent().then((text) => {
-  54  |       const normalized = text?.trim() ?? '';
-  55  |       if (normalized && normalized !== lastProgress) {
-  56  |         lastProgress = normalized;
-  57  |         process.stdout.write(`[browser-ocr] ${normalized}\n`);
-  58  |       }
-  59  |     }).catch(() => undefined);
-  60  |   }, 5_000);
-  61  |   try {
-  62  |     await runButton.click();
-  63  |     await expect(runButton).toHaveText('Extract scoreboard', { timeout: 180_000 });
-  64  |     await expect(panel.getByText(/rows extracted for operator review/)).toBeVisible();
-  65  |   } finally {
-  66  |     clearInterval(progressTimer);
-  67  |   }
-  68  | 
-  69  |   return panel.locator('tbody tr').evaluateAll((rows) =>
-  70  |     rows.map((row) => {
-  71  |       const inputValue = (selector: string) =>
-  72  |         (row.querySelector(selector) as HTMLInputElement | HTMLSelectElement | null)?.value ?? '';
-  73  |       const title = row.getAttribute('title') ?? '';
-  74  |       return {
-  75  |         rank: Number.parseInt(row.getAttribute('data-rank') ?? '', 10) || null,
-  76  |         characterName: inputValue('input[aria-label^="Character "]'),
-  77  |         team: inputValue('select[aria-label^="Team "]') || null,
-  78  |         kills: inputValue('input[aria-label^="kills "]'),
-  79  |         assists: inputValue('input[aria-label^="assists "]'),
-  80  |         damageDealt: inputValue('input[aria-label^="damageDealt "]'),
-  81  |         damageTaken: inputValue('input[aria-label^="damageTaken "]'),
-  82  |         healingDone: inputValue('input[aria-label^="healingDone "]'),
-  83  |         warnings: title ? title.split(' · ') : [],
-  84  |       };
-  85  |     }),
-  86  |   );
-  87  | }
-  88  | 
-  89  | function numericValue(value: string) {
-  90  |   return value === '' ? null : Number(value);
-  91  | }
-  92  | 
-  93  | function toCorpusExtraction(rows: Awaited<ReturnType<typeof runBrowserOcr>>) {
-  94  |   return {
-  95  |     participants: rows.map((row) => ({
-  96  |       rank: row.rank,
-  97  |       characterName: row.characterName,
-  98  |       team: row.team as TeamColor | null,
-  99  |       mainWeapon: null,
-  100 |       offWeapon: null,
-  101 |       kills: numericValue(row.kills),
-  102 |       assists: numericValue(row.assists),
-  103 |       damageDealt: numericValue(row.damageDealt),
-  104 |       damageTaken: numericValue(row.damageTaken),
-  105 |       healingDone: numericValue(row.healingDone),
-  106 |       confidence: 100,
-  107 |       fieldConfidence: {},
-  108 |       warnings: row.warnings,
-  109 |       confirmed: false,
-  110 |     })),
-  111 |   };
-  112 | }
-  113 | 
-  114 | test('runs real browser OCR on a supplied scoreboard image', async ({ page }) => {
-  115 |   test.setTimeout(240_000);
-  116 |   await openScoreboardVerifier(page);
-  117 |   const rows = await runBrowserOcr(page, 'attached_assets/1_1789717015998.png');
+  36  |   );
+  37  |   for (const endpoint of ['applications', 'matches', 'classes']) {
+  38  |     await page.route(`**/api/admin/${endpoint}**`, (route) =>
+  39  |       route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
+  40  |     );
+  41  |   }
+  42  |   await page.route('**/api/classes', (route) =>
+  43  |     route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
+  44  |   );
+  45  |   await page.goto('/admin');
+  46  |   await expect(page.getByTestId('button-open-commit')).toBeVisible();
+  47  |   await page.getByTestId('button-open-commit').click();
+  48  |   await expect(page.getByTestId('panel-commit-match')).toBeVisible();
+  49  | }
+  50  | 
+  51  | async function runBrowserOcr(page: Page, sourcePath: string) {
+  52  |   const panel = page.getByTestId('panel-commit-match');
+  53  |   await panel.getByTestId('input-scoreboard-file').setInputFiles(path.resolve(artifactRoot, '..', '..', sourcePath));
+  54  |   await expect(panel.getByTestId('button-run-ocr')).toBeEnabled();
+  55  |   const runButton = panel.getByTestId('button-run-ocr');
+  56  |   let lastProgress = '';
+  57  |   const progressTimer = setInterval(() => {
+  58  |     void runButton.textContent().then((text) => {
+  59  |       const normalized = text?.trim() ?? '';
+  60  |       if (normalized && normalized !== lastProgress) {
+  61  |         lastProgress = normalized;
+  62  |         process.stdout.write(`[browser-ocr] ${normalized}\n`);
+  63  |       }
+  64  |     }).catch(() => undefined);
+  65  |   }, 5_000);
+  66  |   try {
+  67  |     await runButton.click();
+  68  |     await expect(runButton).toHaveText('Extract scoreboard', { timeout: 180_000 });
+  69  |     await expect(panel.getByText(/rows extracted for operator review/)).toBeVisible();
+  70  |   } finally {
+  71  |     clearInterval(progressTimer);
+  72  |   }
+  73  | 
+  74  |   return panel.locator('tbody tr').evaluateAll((rows) =>
+  75  |     rows.map((row) => {
+  76  |       const inputValue = (selector: string) =>
+  77  |         (row.querySelector(selector) as HTMLInputElement | HTMLSelectElement | null)?.value ?? '';
+  78  |       const title = row.getAttribute('title') ?? '';
+  79  |       return {
+  80  |         rank: Number.parseInt(row.getAttribute('data-rank') ?? '', 10) || null,
+  81  |         characterName: inputValue('input[aria-label^="Character "]'),
+  82  |         team: inputValue('select[aria-label^="Team "]') || null,
+  83  |         kills: inputValue('input[aria-label^="kills "]'),
+  84  |         assists: inputValue('input[aria-label^="assists "]'),
+  85  |         damageDealt: inputValue('input[aria-label^="damageDealt "]'),
+  86  |         damageTaken: inputValue('input[aria-label^="damageTaken "]'),
+  87  |         healingDone: inputValue('input[aria-label^="healingDone "]'),
+  88  |         warnings: title ? title.split(' · ') : [],
+  89  |       };
+  90  |     }),
+  91  |   );
+  92  | }
+  93  | 
+  94  | function numericValue(value: string) {
+  95  |   return value === '' ? null : Number(value);
+  96  | }
+  97  | 
+  98  | function toCorpusExtraction(rows: Awaited<ReturnType<typeof runBrowserOcr>>) {
+  99  |   return {
+  100 |     participants: rows.map((row) => ({
+  101 |       rank: row.rank,
+  102 |       characterName: row.characterName,
+  103 |       team: row.team as TeamColor | null,
+  104 |       mainWeapon: null,
+  105 |       offWeapon: null,
+  106 |       kills: numericValue(row.kills),
+  107 |       assists: numericValue(row.assists),
+  108 |       damageDealt: numericValue(row.damageDealt),
+  109 |       damageTaken: numericValue(row.damageTaken),
+  110 |       healingDone: numericValue(row.healingDone),
+  111 |       confidence: 100,
+  112 |       fieldConfidence: {},
+  113 |       warnings: row.warnings,
+  114 |       confirmed: false,
+  115 |     })),
+  116 |   };
+  117 | }
   118 | 
-  119 |   expect(rows.length).toBeGreaterThan(0);
-  120 |   expect(rows.some((row) => row.kills !== '' && row.damageDealt !== '')).toBe(true);
-  121 | });
-  122 | 
-  123 | for (const capture of corpus) {
-  124 |   test(`benchmarks browser OCR: ${capture.id}`, async ({ page }) => {
-  125 |     test.setTimeout(240_000);
-  126 |     process.stdout.write(`[browser-ocr] ${capture.id}: starting\n`);
-  127 |     await openScoreboardVerifier(page);
-  128 |     const rows = await runBrowserOcr(page, capture.sourcePath);
-  129 |     const report = evaluateCorpusCapture(capture, toCorpusExtraction(rows));
-  130 |     process.stdout.write(`[browser-ocr] ${capture.id}: ${report.matchedRows}/${report.expectedRows} rows, ${report.numericMismatches.length} numeric mismatches\n`);
-> 131 |     assert.ok(report.passed, JSON.stringify({
+  119 | test('runs real browser OCR on a supplied scoreboard image', async ({ page }) => {
+  120 |   test.setTimeout(240_000);
+  121 |   await openScoreboardVerifier(page);
+  122 |   const rows = await runBrowserOcr(page, 'attached_assets/1_1789717015998.png');
+  123 | 
+  124 |   expect(rows.length).toBeGreaterThan(0);
+  125 |   expect(rows.some((row) => row.kills !== '' && row.damageDealt !== '')).toBe(true);
+  126 | });
+  127 | 
+  128 | for (const capture of corpus) {
+  129 |   test(`benchmarks browser OCR: ${capture.id}`, async ({ page }) => {
+  130 |     test.setTimeout(240_000);
+  131 |     process.stdout.write(`[browser-ocr] ${capture.id}: starting\n`);
+  132 |     await openScoreboardVerifier(page);
+  133 |     const rows = await runBrowserOcr(page, capture.sourcePath);
+  134 |     const report = evaluateCorpusCapture(capture, toCorpusExtraction(rows));
+  135 |     process.stdout.write(`[browser-ocr] ${capture.id}: ${report.matchedRows}/${report.expectedRows} rows, ${report.numericMismatches.length} numeric mismatches\n`);
+> 136 |     assert.ok(report.passed, JSON.stringify({
       |            ^ AssertionError: {
-  132 |       captureId: report.captureId,
-  133 |       matchedRows: report.matchedRows,
-  134 |       expectedRows: report.expectedRows,
-  135 |       missingRows: report.missingRows,
-  136 |       extraRows: report.extraRows,
-  137 |       nameMismatches: report.nameMismatches.length,
-  138 |       teamMismatches: report.teamMismatches.length,
-  139 |       numericMismatches: report.numericMismatches.length,
-  140 |       uncertainRows: report.uncertainRows,
-  141 |     }, null, 2));
-  142 |   });
-  143 | }
+  137 |       captureId: report.captureId,
+  138 |       matchedRows: report.matchedRows,
+  139 |       expectedRows: report.expectedRows,
+  140 |       missingRows: report.missingRows,
+  141 |       extraRows: report.extraRows,
+  142 |       nameMismatches: report.nameMismatches.length,
+  143 |       teamMismatches: report.teamMismatches.length,
+  144 |       numericMismatches: report.numericMismatches.length,
+  145 |       uncertainRows: report.uncertainRows,
+  146 |     }, null, 2));
+  147 |   });
+  148 | }
 ```
