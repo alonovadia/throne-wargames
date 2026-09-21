@@ -500,7 +500,7 @@ export async function extractScoreboard(
           (() => {
             const cell = cellAtRow(field, anchor.y);
             const focused = focusedNumericCells.get(`${field}:${rowIndex}`);
-            if (focused && (cell === null || focused.confidence > (cell.confidence ?? 0) || focused.result.value === 0)) {
+            if (focused && (cell === null || focused.confidence > (cell.confidence ?? 0))) {
               return focused.result;
             }
             return cleanNumericCell(cell?.text ?? '');
@@ -631,9 +631,9 @@ export async function extractScoreboard(
       const orderedOffset = [...offsetCounts.entries()].sort((left, right) => right[1] - left[1])[0];
       if (orderedOffset && orderedOffset[1] >= 1) {
         best.participants = best.participants.map((participant, index) => {
-          if (participant.rank !== null) return participant;
           const inferredRank = index + orderedOffset[0];
           if (inferredRank < 1) return participant;
+          if (participant.rank !== null && participant.rank - index === orderedOffset[0]) return participant;
           return {
             ...participant,
             rank: inferredRank,
