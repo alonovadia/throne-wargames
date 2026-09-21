@@ -82,7 +82,22 @@ export default function AdminPage() {
               <AdminMetric icon={FileCheck2} label="Application queue" value={summary.applicationQueue.toString()} accent />
               <AdminMetric icon={ShieldCheck} label="OCR confidence" value={summary.ocrConfidence === null ? '—' : `${summary.ocrConfidence.toFixed(1)}%`} />
             </div>
-            <label className="mt-8 block max-w-md"><span className="field-label">Operator name for audit records</span><input value={actor} onChange={(event) => { setActor(event.target.value); sessionStorage.setItem('throne-admin-actor', event.target.value); }} className="field-input mt-2" placeholder="Your name or operator handle" data-testid="input-admin-actor" /></label>
+            <label className="mt-8 block max-w-md">
+              <span className="field-label">Operator name for audit records</span>
+              <input
+                list="operator-name-options"
+                value={actor}
+                onChange={(event) => { setActor(event.target.value); sessionStorage.setItem('throne-admin-actor', event.target.value); }}
+                className="field-input mt-2"
+                placeholder="Your name or operator handle"
+                data-testid="input-admin-actor"
+              />
+              <datalist id="operator-name-options">
+                <option value="Admin" />
+                <option value="Suricata" />
+              </datalist>
+              <span className="mt-2 block text-xs text-muted-foreground">Suggested operators: Admin and Suricata. You can enter another operator name when needed.</span>
+            </label>
             <div className="mt-12 grid gap-10 lg:grid-cols-[1.15fr_0.85fr]">
               <div className="border border-border bg-card p-6 sm:p-8">
                 <div className="flex items-end justify-between gap-5 border-b border-border pb-5"><div><div className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary">Visitor telemetry</div><h2 className="mt-3 font-display text-3xl font-bold tracking-[-0.05em]">Audience signal</h2></div><BarChart3 size={19} className="text-primary" /></div>
