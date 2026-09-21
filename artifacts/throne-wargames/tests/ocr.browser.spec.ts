@@ -24,6 +24,7 @@ async function openScoreboardVerifier(page: Page) {
   await page.addInitScript(() => {
     sessionStorage.setItem('throne-admin-key', 'browser-ocr-test-key');
     sessionStorage.setItem('throne-admin-actor', 'Browser OCR test');
+    localStorage.setItem('throne-ocr-debug', '1');
   });
   await page.route('**/api/admin/summary', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(adminSummary) }),

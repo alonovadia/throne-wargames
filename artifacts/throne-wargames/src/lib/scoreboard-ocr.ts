@@ -578,6 +578,17 @@ export async function extractScoreboard(
         _columnCells: columnCells,
         _score: scoreExtractionCandidate(candidateRows, result.data.confidence),
       });
+      if (typeof localStorage !== 'undefined' && localStorage.getItem('throne-ocr-debug') === '1') {
+        console.log(`[ocr-debug] ${mode} candidates: ${JSON.stringify(participants.map((participant) => ({
+          rank: participant.rank,
+          name: participant.characterName,
+          kills: participant.kills,
+          damageDealt: participant.damageDealt,
+          damageTaken: participant.damageTaken,
+          healingDone: participant.healingDone,
+        })))}`
+        );
+      }
     }
 
     onProgress(100);
