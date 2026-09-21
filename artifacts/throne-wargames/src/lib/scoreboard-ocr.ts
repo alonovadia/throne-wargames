@@ -609,41 +609,36 @@ export async function extractScoreboard(
         const currentEmpty = current === null || current === '';
         const currentConfidence = merged.fieldConfidence[field] ?? 0;
         const cellKey = field === 'characterName' ? 'name' : field as OcrFieldKey;
-        const alternatives: Array<{ value: string | number; confidence: number }> = candidates
-          .filter((candidate) => candidate !== best)
-          .flatMap((candidate) => {
-            const cells = candidate._columnCells[cellKey] ?? [];
-            const cell = cells.reduce<DetectedCell | null>((nearest, next) =>
-              !nearest || Math.abs(next.y - bestRowY) < Math.abs(nearest.y - bestRowY)
-                ? next
-                : nearest, null);
-            if (!cell || Math.abs(cell.y - bestRowY) > alignmentTolerance) return [];
-            if (field === 'characterName') {
-              return [{
-                value: cell.text.replace(/\s+/g, ' ').trim(),
-                confidence: cell.confidence,
-              }];
-            }
-            if (field === 'team') {
-              const detection = detectTeamFromText(cell.text);
-              return detection.team
-                ? [{ value: detection.team, confidence: detection.confidence }]
-                : [];
-            }
-            const result = field === 'rank'
-              ? cleanRankCell(cell.text)
-              : cleanNumericCell(cell.text);
-            return result.value === null
-              ? []
-              : [{ value: result.value, confidence: cell.confidence }];
-          })
-          .filter((alternative) => alternative.value !== '')
-          .sort((left, right) => right.confidence - left.confidence)[0];
-        if (!alternatives) continue;
-        const alternativeConfidence = alternatives.confidence;
+        const alternatives: Array<{ value: string | number; confidence: number }> = [];
+        for (const candidate of candidates) {
+          if (candidate === best) continue;
+          const cells = candidate._columnCells[cellKey] ?? [];
+          const cell = cells.reduce<DetectedCell | null>((nearest, next) =>
+            !nearest || Math.abs(next.y - bestRowY) < Math.abs(nearest.y - bestRowY)
+              ? next
+              : nearest, null);
+          if (!cell || Math.abs(cell.y - bestRowY) > alignmentTolerance) continue;
+          if (field === 'characterName') {
+            const value = cell.text.replace(/\s+/g, ' ').trim();
+            if (value) alternatives.push({ value, confidence: cell.confidence });
+            continue;
+          }
+          if (field === 'team') {
+            const detection = detectTeamFromText(cell.text);
+            if (detection.team) alternatives.push({ value: detection.team, confidence: detection.confidence });
+            continue;
+          }
+          const result = field === 'rank'
+            ? cleanRankCell(cell.text)
+            : cleanNumericCell(cell.text);
+          if (result.value !== null) alternatives.push({ value: result.value, confidence: cell.confidence });
+        }
+        const alternative = alternatives.sort((left, right) => right.confidence - left.confidence)[0];
+        if (!alternative) continue;
+        const alternativeConfidence = alternative.confidence;
         const hasCorrectionWarning = merged.warnings.some((warning) => warning.startsWith(field) && warning.includes('correction'));
         if (currentEmpty || hasCorrectionWarning || alternativeConfidence > currentConfidence + 10) {
-          merged[field] = alternatives.value as never;
+          merged[field] = alternative.value as never;
           merged.fieldConfidence[field] = alternativeConfidence;
           if (currentEmpty) {
             const warning = `${field} was recovered from another OCR pass; verify it`;
