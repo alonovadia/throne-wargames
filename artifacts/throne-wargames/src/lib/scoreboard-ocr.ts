@@ -578,17 +578,6 @@ export async function extractScoreboard(
         _columnCells: columnCells,
         _score: scoreExtractionCandidate(candidateRows, result.data.confidence),
       });
-      if (typeof localStorage !== 'undefined' && localStorage.getItem('throne-ocr-debug') === '1') {
-        console.log(`[ocr-debug] ${mode} candidates: ${JSON.stringify(participants.map((participant) => ({
-          rank: participant.rank,
-          name: participant.characterName,
-          kills: participant.kills,
-          damageDealt: participant.damageDealt,
-          damageTaken: participant.damageTaken,
-          healingDone: participant.healingDone,
-        })))}`
-        );
-      }
     }
 
     onProgress(100);
@@ -652,7 +641,10 @@ export async function extractScoreboard(
         if (!alternative) continue;
         const alternativeConfidence = alternative.confidence;
         const hasCorrectionWarning = merged.warnings.some((warning) => warning.startsWith(field) && warning.includes('correction'));
-        if (currentEmpty || hasCorrectionWarning || alternativeConfidence > currentConfidence + 10) {
+        const mayReplaceCurrent =
+          best.preprocessing !== 'contrast' &&
+          alternativeConfidence > currentConfidence + 10;
+        if (currentEmpty || hasCorrectionWarning || mayReplaceCurrent) {
           merged[field] = alternative.value as never;
           merged.fieldConfidence[field] = alternativeConfidence;
           if (currentEmpty) {
@@ -684,7 +676,9 @@ export async function extractScoreboard(
         });
       }
     }
-    delete (best as ScoreboardExtraction & { _score?: number })._score;
+    delete best._score;
+    delete best._rowAnchors;
+    delete best._columnCells;
     return best;
   } finally {
     await worker.terminate();
