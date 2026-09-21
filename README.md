@@ -1,6 +1,6 @@
 # Throne & Liberty Wargames
 
-Throne & Liberty Wargames is a public record of organized 6v6 matches.
+Throne & Liberty Wargames is a public record of organized Team vs Team (GvG) matches.
 
 Anyone can view match results, player records, rankings, and season statistics.
 Visitors do not need an account. Match records and roster applications are
