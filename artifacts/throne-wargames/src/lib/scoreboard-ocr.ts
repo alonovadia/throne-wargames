@@ -592,7 +592,11 @@ export async function extractScoreboard(
     }
 
     onProgress(100);
-    const best = candidates.sort((left, right) => right._score - left._score)[0];
+    const rankedCandidates = candidates.sort((left, right) => right._score - left._score);
+    const best = rankedCandidates.find((candidate) =>
+      candidate.preprocessing === 'contrast' &&
+      candidate.participants.length === rankedCandidates[0]?.participants.length,
+    ) ?? rankedCandidates[0];
     if (!best) return { participants: [], confidence: 0, rawText: '', preprocessing: 'original', weaponEvidence: [] };
     const fields: ParticipantField[] = [
       'rank',
