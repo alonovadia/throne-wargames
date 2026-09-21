@@ -8,10 +8,14 @@
     "build": "vite build --config vite.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "test:unit": "TZ=Asia/Jerusalem pnpm exec tsx --test ./src/lib/*.test.ts",
+    "test:browser": "playwright test --config=playwright.config.ts",
+    "test:browser:smoke": "playwright test --config=playwright.config.ts --grep \"runs real browser OCR on a supplied scoreboard image\"",
+    "test:browser:corpus": "playwright test --config=playwright.config.ts --grep \"benchmarks browser OCR\"",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",
+    "@playwright/test": "^1.63.0",
     "@radix-ui/react-accordion": "^1.2.4",
     "@radix-ui/react-alert-dialog": "^1.1.7",
     "@radix-ui/react-aspect-ratio": "^1.1.3",

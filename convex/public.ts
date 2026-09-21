@@ -26,6 +26,7 @@ async function loadMatch(ctx: any, match: any) {
         kills: row.kills,
         assists: row.assists,
         damageDealt: row.damageDealt,
+        damageTaken: row.damageTaken ?? 0,
         healingDone: row.healingDone,
       };
     }),
@@ -39,6 +40,9 @@ async function loadMatch(ctx: any, match: any) {
       .reduce((sum: number, participant: any) => sum + participant.kills, 0),
     redScore: participants
       .filter((participant: any) => participant.team === "RED")
+      .reduce((sum: number, participant: any) => sum + participant.kills, 0),
+    yellowScore: participants
+      .filter((participant: any) => participant.team === "YELLOW")
       .reduce((sum: number, participant: any) => sum + participant.kills, 0),
     hasScreenshot: Boolean(match.screenshotStorageId),
     note: match.note ?? "",

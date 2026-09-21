@@ -14,6 +14,7 @@ export interface MatchSummary {
   winningTeam: TeamColor;
   blueScore: number;
   redScore: number;
+  yellowScore: number;
   note: string;
   hasScreenshot: boolean;
   participants: MatchParticipant[];

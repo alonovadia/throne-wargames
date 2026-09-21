@@ -37,6 +37,8 @@ import {
   UpdateClassResponse,
   DeleteClassParams,
   DeleteClassBody,
+  EnhanceScoreboardOcrBody,
+  EnhanceScoreboardOcrResponse,
 } from "@workspace/api-zod";
 import {
   createApplication,
@@ -70,6 +72,100 @@ function privilegedConvexArgs(args: Record<string, unknown> = {}) {
 }
 
 const maxScoreboardBytes = 8 * 1024 * 1024;
+
+type OcrSpaceWord = {
+  WordText?: string;
+  Left?: number;
+  Top?: number;
+};
+
+type OcrSpaceLine = {
+  LineText?: string;
+  MinTop?: number;
+  Words?: OcrSpaceWord[];
+};
+
+type OcrSpacePayload = {
+  IsErroredOnProcessing?: boolean;
+  ErrorMessage?: string | string[];
+  ParsedResults?: Array<{
+    ParsedText?: string;
+    ErrorMessage?: string;
+    TextOverlay?: { Lines?: OcrSpaceLine[] };
+  }>;
+};
+
+function reconstructOcrSpaceRows(payload: OcrSpacePayload) {
+  const result = payload.ParsedResults?.[0];
+  const overlayLines = result?.TextOverlay?.Lines ?? [];
+  const words = overlayLines.flatMap((line) => line.Words ?? [])
+    .filter((word): word is OcrSpaceWord & { WordText: string; Left: number; Top: number } =>
+      typeof word.WordText === "string" &&
+      typeof word.Left === "number" &&
+      typeof word.Top === "number",
+    );
+  if (!words.length) return result?.ParsedText?.trim() ?? "";
+
+  const teamWords = words.filter((word) => /^(blue|red|yellow)$/i.test(word.WordText.trim()));
+  const numericWords = words.filter((word) => /^[0-9][\d,.]*$/.test(word.WordText.trim()));
+  const teamLeft = teamWords.length
+    ? teamWords.reduce((sum, word) => sum + word.Left, 0) / teamWords.length
+    : Math.min(...numericWords.map((word) => word.Left));
+  const nameCandidates = words.filter((word) =>
+    word.Left < teamLeft &&
+    !/^(blue|red|yellow)$/i.test(word.WordText.trim()) &&
+    !/^[0-9][\d,.]*$/.test(word.WordText.trim()),
+  );
+  const nameColumns: Array<{ start: number; end: number; center: number }> = [];
+  for (const word of [...nameCandidates].sort((left, right) => left.Left - right.Left)) {
+    const column = nameColumns.at(-1);
+    if (column && word.Left - column.end <= 80) {
+      column.end = Math.max(column.end, word.Left);
+      column.center = (column.start + column.end) / 2;
+    } else {
+      nameColumns.push({ start: word.Left, end: word.Left, center: word.Left });
+    }
+  }
+  const nameColumn = [...nameColumns].sort((left, right) => right.center - left.center)[0];
+
+  const rows: Array<{ top: number; words: typeof words }> = [];
+  for (const word of words) {
+    const row = rows.find((candidate) => Math.abs(candidate.top - word.Top) <= 12);
+    if (row) row.words.push(word);
+    else rows.push({ top: word.Top, words: [word] });
+  }
+
+  return rows
+    .sort((left, right) => left.top - right.top)
+    .map((row) => {
+      const rankWord = row.words
+        .filter((word) =>
+          word.Left < (nameColumn?.start ?? teamLeft) &&
+          /^[0-9]{1,3}$/.test(word.WordText.trim()),
+        )
+        .sort((left, right) => left.Left - right.Left)[0];
+      const rowTeam = row.words.find((word) => /^(blue|red|yellow)$/i.test(word.WordText.trim()));
+      const name = row.words
+        .filter((word) =>
+          nameColumn &&
+          word.Left >= nameColumn.start - 20 &&
+          word.Left <= nameColumn.end + 80 &&
+          !/^(blue|red|yellow)$/i.test(word.WordText.trim()) &&
+          !/^[0-9][\d,.]*$/.test(word.WordText.trim()),
+        )
+        .sort((left, right) => left.Left - right.Left)
+        .map((word) => word.WordText)
+        .join(" ");
+      const stats = row.words
+        .filter((word) => word.Left > teamLeft && /^[0-9][\d,.]*$/.test(word.WordText.trim()))
+        .sort((left, right) => left.Left - right.Left)
+        .map((word) => word.WordText)
+        .join(" ");
+      return [rankWord?.WordText, name, rowTeam?.WordText, stats].filter(Boolean).join(" ");
+    })
+    .filter(Boolean)
+    .join("\n");
+}
 
 async function consumePublicWriteLimit(
   req: Request,
@@ -320,6 +416,93 @@ router.get("/admin/summary", async (req, res, next) => {
   }
 });
 
+router.post("/admin/ocr/enhance", async (req, res, next) => {
+  if (!hasAdminAccess(req)) {
+    res.status(401).json({ error: "Admin authentication required" });
+    return;
+  }
+
+  const parsed = EnhanceScoreboardOcrBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid scoreboard image", details: parsed.error.flatten().fieldErrors });
+    return;
+  }
+
+  const apiKey = process.env.OCR_SPACE_API_KEY;
+  if (!apiKey) {
+    res.status(503).json({ error: "Enhanced OCR is not configured." });
+    return;
+  }
+
+  let imageBytes: Buffer;
+  try {
+    imageBytes = decodeScoreboard(parsed.data);
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : "Invalid scoreboard image." });
+    return;
+  }
+
+  try {
+    const form = new FormData();
+    form.append("apikey", apiKey);
+    form.append("language", "eng");
+    form.append("isOverlayRequired", "true");
+    form.append("detectOrientation", "true");
+    form.append("scale", "true");
+    form.append("OCREngine", "2");
+    const imageBuffer = new Uint8Array(imageBytes.byteLength);
+    imageBuffer.set(imageBytes);
+    form.append(
+      "file",
+      new Blob([imageBuffer.buffer], { type: parsed.data.contentType }),
+      parsed.data.name,
+    );
+
+    const providerResponse = await fetch("https://api.ocr.space/parse/image", {
+      method: "POST",
+      body: form,
+    });
+    if (!providerResponse.ok) {
+      req.log.warn({ status: providerResponse.status }, "External OCR provider returned an error");
+      if (providerResponse.status === 401 || providerResponse.status === 403) {
+        res.status(503).json({ error: "The configured OCR.space API key was rejected. Update OCR_SPACE_API_KEY." });
+        return;
+      }
+      res.status(502).json({ error: "Enhanced OCR provider failed." });
+      return;
+    }
+
+    const payload = await providerResponse.json() as OcrSpacePayload;
+    const warnings = [
+      ...(Array.isArray(payload.ErrorMessage)
+        ? payload.ErrorMessage
+        : payload.ErrorMessage
+          ? [payload.ErrorMessage]
+          : []),
+      ...(payload.ParsedResults ?? [])
+        .map((result) => result.ErrorMessage)
+        .filter((message): message is string => Boolean(message)),
+    ];
+    const text = reconstructOcrSpaceRows(payload);
+
+    if (payload.IsErroredOnProcessing || !text) {
+      req.log.warn({ warningCount: warnings.length }, "External OCR provider returned no usable text");
+      res.status(502).json({ error: "Enhanced OCR provider returned no usable text." });
+      return;
+    }
+
+    res.json(EnhanceScoreboardOcrResponse.parse({
+      engine: "ocr-space",
+      text,
+      confidence: null,
+      warnings,
+    }));
+  } catch (error) {
+    req.log.warn({ err: error }, "External OCR request failed");
+    res.status(502).json({ error: "Enhanced OCR provider failed." });
+  }
+});
+
 router.get("/admin/applications", async (req, res, next) => {
   if (!hasAdminAccess(req)) {
     res.status(401).json({ error: "Admin authentication required" });
@@ -382,6 +565,11 @@ router.post("/admin/matches", async (req, res, next) => {
     return;
   }
   const input = CommitMatchBody.parse(req.body);
+  const parsedMatchDate = input.matchDate ? Date.parse(input.matchDate) : null;
+  if (input.matchDate && !Number.isFinite(parsedMatchDate)) {
+    res.status(400).json({ error: "Invalid match date" });
+    return;
+  }
   let uploadedStorageId: string | null = null;
   try {
     if (isConvexConfigured) {
@@ -403,11 +591,11 @@ router.post("/admin/matches", async (req, res, next) => {
         throw new Error("The scoreboard upload did not return a storage identifier.");
       }
       uploadedStorageId = uploaded.storageId;
-      const { screenshot: _screenshot, ...matchInput } = input;
+      const { screenshot: _screenshot, matchDate: _matchDate, ...matchInput } = input;
       const result = await convexMutation<string>("admin:commitMatch", {
         ...privilegedConvexArgs(matchInput),
         screenshotStorageId: uploadedStorageId,
-        ...(input.matchDate ? { matchDate: Date.parse(input.matchDate) } : {}),
+        ...(parsedMatchDate !== null ? { matchDate: parsedMatchDate } : {}),
       });
       uploadedStorageId = null;
       const committed = await convexQuery("public:matchById", { matchId: result });

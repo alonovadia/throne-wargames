@@ -84,6 +84,7 @@ export type TeamColor = typeof TeamColor[keyof typeof TeamColor];
 export const TeamColor = {
   BLUE: 'BLUE',
   RED: 'RED',
+  YELLOW: 'YELLOW',
 } as const;
 
 export interface MatchParticipant {
@@ -96,6 +97,7 @@ export interface MatchParticipant {
   kills: number;
   assists: number;
   damageDealt: number;
+  damageTaken: number;
   healingDone: number;
 }
 
@@ -105,6 +107,7 @@ export interface MatchSummary {
   winningTeam: TeamColor;
   blueScore: number;
   redScore: number;
+  yellowScore: number;
   note: string;
   hasScreenshot: boolean;
   participants: MatchParticipant[];
@@ -311,6 +314,8 @@ export interface MatchParticipantInput {
   /** @minimum 0 */
   damageDealt: number;
   /** @minimum 0 */
+  damageTaken: number;
+  /** @minimum 0 */
   healingDone: number;
 }
 
@@ -349,6 +354,41 @@ export interface MatchInput {
      * @maxItems 96
      */
   participants: MatchParticipantInput[];
+}
+
+export type ScoreboardOcrInputContentType = typeof ScoreboardOcrInputContentType[keyof typeof ScoreboardOcrInputContentType];
+
+
+export const ScoreboardOcrInputContentType = {
+  'image/png': 'image/png',
+  'image/jpeg': 'image/jpeg',
+  'image/webp': 'image/webp',
+} as const;
+
+export interface ScoreboardOcrInput {
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  name: string;
+  contentType: ScoreboardOcrInputContentType;
+  /** @minLength 1 */
+  base64: string;
+}
+
+export type ScoreboardOcrResponseEngine = typeof ScoreboardOcrResponseEngine[keyof typeof ScoreboardOcrResponseEngine];
+
+
+export const ScoreboardOcrResponseEngine = {
+  'ocr-space': 'ocr-space',
+} as const;
+
+export interface ScoreboardOcrResponse {
+  engine: ScoreboardOcrResponseEngine;
+  text: string;
+  /** @nullable */
+  confidence: number | null;
+  warnings: string[];
 }
 
 export interface MatchCorrection {

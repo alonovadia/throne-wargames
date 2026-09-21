@@ -1,0 +1,64 @@
+[
+  {
+    "id": "top-rows-original",
+    "sourcePath": "attached_assets/1_1789717015998.png",
+    "description": "Original supplied capture containing ranks 1 through 10 with Red and Yellow teams.",
+    "minRowRecall": 1,
+    "maxTeamMismatches": 0,
+    "maxNumericMismatches": 0,
+    "maxUncertainRows": 0,
+    "expectedRows": [
+      {"rank":1,"characterName":"—","team":"RED","kills":143,"assists":223,"damageDealt":8725957,"damageTaken":3211932,"healingDone":27402},
+      {"rank":2,"characterName":"Milio","team":"YELLOW","kills":141,"assists":140,"damageDealt":9945289,"damageTaken":2798420,"healingDone":90970},
+      {"rank":3,"characterName":"WolfFR","team":"RED","kills":117,"assists":154,"damageDealt":7631081,"damageTaken":1492813,"healingDone":2710},
+      {"rank":4,"characterName":"holydumpling","team":"RED","kills":103,"assists":209,"damageDealt":8421639,"damageTaken":2557461,"healingDone":0},
+      {"rank":5,"characterName":"But-Why?","team":"RED","kills":85,"assists":157,"damageDealt":5987324,"damageTaken":2967060,"healingDone":0},
+      {"rank":6,"characterName":"elNougato","team":"RED","kills":83,"assists":181,"damageDealt":4839646,"damageTaken":2383651,"healingDone":18165},
+      {"rank":7,"characterName":"× Doju","team":"RED","kills":81,"assists":138,"damageDealt":4788678,"damageTaken":2314665,"healingDone":37089},
+      {"rank":8,"characterName":"CLarKK+","team":"YELLOW","kills":68,"assists":105,"damageDealt":5022582,"damageTaken":2900652,"healingDone":29730},
+      {"rank":9,"characterName":"Josh","team":"YELLOW","kills":64,"assists":132,"damageDealt":5681015,"damageTaken":1919537,"healingDone":0},
+      {"rank":10,"characterName":"AimAssist","team":"YELLOW","kills":63,"assists":142,"damageDealt":5382813,"damageTaken":3041260,"healingDone":31258}
+    ]
+  },
+  {
+    "id": "lower-rows-original",
+    "sourcePath": "attached_assets/image_1789717406320.png",
+    "description": "Second supplied capture containing ranks 11 through 19 with Red and Yellow teams.",
+    "minRowRecall": 1,
+    "maxTeamMismatches": 0,
+    "maxNumericMismatches": 0,
+    "maxUncertainRows": 0,
+    "expectedRows": [
+      {"rank":11,"characterName":"LandaHans","team":"RED","kills":63,"assists":123,"damageDealt":4187002,"damageTaken":1717347,"healingDone":0},
+      {"rank":12,"characterName":"Clown31","team":"RED","kills":62,"assists":103,"damageDealt":3779834,"damageTaken":2946397,"healingDone":67155},
+      {"rank":13,"characterName":"Bojii x","team":"RED","kills":60,"assists":60,"damageDealt":3522964,"damageTaken":1351074,"healingDone":0},
+      {"rank":14,"characterName":"ice","team":"RED","kills":57,"assists":129,"damageDealt":3783934,"damageTaken":2355742,"healingDone":0},
+      {"rank":15,"characterName":"Caster","team":"YELLOW","kills":56,"assists":183,"damageDealt":7464342,"damageTaken":2336858,"healingDone":0},
+      {"rank":16,"characterName":"Scythe","team":"YELLOW","kills":54,"assists":126,"damageDealt":5631950,"damageTaken":1685259,"healingDone":0},
+      {"rank":17,"characterName":"Roulette","team":"YELLOW","kills":54,"assists":61,"damageDealt":3364278,"damageTaken":1867854,"healingDone":2141},
+      {"rank":18,"characterName":"Edgio","team":"RED","kills":53,"assists":167,"damageDealt":5040903,"damageTaken":1755343,"healingDone":0},
+      {"rank":19,"characterName":"MISTI","team":"YELLOW","kills":53,"assists":72,"damageDealt":4427323,"damageTaken":2404613,"healingDone":9383}
+    ]
+  },
+  {
+    "id": "top-rows-with-boundary-overlay",
+    "sourcePath": "attached_assets/image_1789717304337.png",
+    "description": "Marked version of the top capture; red boundary lines test annotation tolerance.",
+    "minRowRecall": 1,
+    "maxTeamMismatches": 0,
+    "maxNumericMismatches": 0,
+    "maxUncertainRows": 0,
+    "expectedRows": [
+      {"rank":1,"characterName":"—","team":"RED","kills":143,"assists":223,"damageDealt":8725957,"damageTaken":3211932,"healingDone":27402},
+      {"rank":2,"characterName":"Milio","team":"YELLOW","kills":141,"assists":140,"damageDealt":9945289,"damageTaken":2798420,"healingDone":90970},
+      {"rank":3,"characterName":"WolfFR","team":"RED","kills":117,"assists":154,"damageDealt":7631081,"damageTaken":1492813,"healingDone":2710},
+      {"rank":4,"characterName":"holydumpling","team":"RED","kills":103,"assists":209,"damageDealt":8421639,"damageTaken":2557461,"healingDone":0},
+      {"rank":5,"characterName":"But-Why?","team":"RED","kills":85,"assists":157,"damageDealt":5987324,"damageTaken":2967060,"healingDone":0},
+      {"rank":6,"characterName":"elNougato","team":"RED","kills":83,"assists":181,"damageDealt":4839646,"damageTaken":2383651,"healingDone":18165},
+      {"rank":7,"characterName":"× Doju","team":"RED","kills":81,"assists":138,"damageDealt":4788678,"damageTaken":2314665,"healingDone":37089},
+      {"rank":8,"characterName":"CLarKK+","team":"YELLOW","kills":68,"assists":105,"damageDealt":5022582,"damageTaken":2900652,"healingDone":29730},
+      {"rank":9,"characterName":"Josh","team":"YELLOW","kills":64,"assists":132,"damageDealt":5681015,"damageTaken":1919537,"healingDone":0},
+      {"rank":10,"characterName":"AimAssist","team":"YELLOW","kills":63,"assists":142,"damageDealt":5382813,"damageTaken":3041260,"healingDone":31258}
+    ]
+  }
+]
