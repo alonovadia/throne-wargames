@@ -50,6 +50,12 @@ export type ScoreboardExtraction = {
   weaponEvidence: Array<{ main: IconSignature; off: IconSignature } | null>;
 };
 
+type ExtractionCandidate = ScoreboardExtraction & {
+  _score: number;
+  _rowAnchors: number[];
+  _columnCells: Partial<Record<OcrFieldKey, DetectedCell[]>>;
+};
+
 export type ColumnBoundary = {
   key: string;
   label: string;
@@ -269,7 +275,7 @@ export async function extractScoreboard(
       };
     };
 
-    const candidates: ScoreboardExtraction[] = [];
+    const candidates: ExtractionCandidate[] = [];
     for (const [passIndex, mode] of preprocessingModes.entries()) {
       activePass = passIndex;
       const createStackBlob = async (
@@ -568,15 +574,14 @@ export async function extractScoreboard(
         rawText: result.data.text,
         preprocessing: mode,
         weaponEvidence,
+        _rowAnchors: rowAnchors.map((anchor) => anchor.y),
+        _columnCells: columnCells,
         _score: scoreExtractionCandidate(candidateRows, result.data.confidence),
-      } as ScoreboardExtraction & { _score: number });
+      });
     }
 
     onProgress(100);
-    const best = candidates.sort((left, right) =>
-      ((right as ScoreboardExtraction & { _score?: number })._score ?? 0) -
-      ((left as ScoreboardExtraction & { _score?: number })._score ?? 0),
-    )[0];
+    const best = candidates.sort((left, right) => right._score - left._score)[0];
     if (!best) return { participants: [], confidence: 0, rawText: '', preprocessing: 'original', weaponEvidence: [] };
     const fields: ParticipantField[] = [
       'rank',
@@ -594,25 +599,53 @@ export async function extractScoreboard(
         fieldConfidence: { ...participant.fieldConfidence },
         warnings: [...participant.warnings],
       };
-      const alternatives = candidates
-        .filter((candidate) => candidate !== best)
-        .map((candidate) => candidate.participants[rowIndex])
-        .filter((candidate): candidate is VerifiedParticipant => Boolean(candidate));
+      const bestRowY = best._rowAnchors[rowIndex];
+      const alignmentTolerance = Math.max(
+        12,
+        (scaledHeight / Math.max(1, best.participants.length)) * 0.55,
+      );
       for (const field of fields) {
         const current = merged[field];
         const currentEmpty = current === null || current === '';
         const currentConfidence = merged.fieldConfidence[field] ?? 0;
-        const alternative = alternatives
-          .filter((candidate) => {
-            const value = candidate[field];
-            return value !== null && value !== '' && (field !== 'team' || value !== null);
+        const cellKey = field === 'characterName' ? 'name' : field as OcrFieldKey;
+        const alternatives = candidates
+          .filter((candidate) => candidate !== best)
+          .map((candidate) => {
+            const cells = candidate._columnCells[cellKey] ?? [];
+            const cell = cells.reduce<DetectedCell | null>((nearest, next) =>
+              !nearest || Math.abs(next.y - bestRowY) < Math.abs(nearest.y - bestRowY)
+                ? next
+                : nearest, null);
+            if (!cell || Math.abs(cell.y - bestRowY) > alignmentTolerance) return null;
+            if (field === 'characterName') {
+              return {
+                value: cell.text.replace(/\s+/g, ' ').trim(),
+                confidence: cell.confidence,
+              };
+            }
+            if (field === 'team') {
+              const detection = detectTeamFromText(cell.text);
+              return detection.team
+                ? { value: detection.team, confidence: detection.confidence }
+                : null;
+            }
+            const result = field === 'rank'
+              ? cleanRankCell(cell.text)
+              : cleanNumericCell(cell.text);
+            return result.value === null
+              ? null
+              : { value: result.value, confidence: cell.confidence };
           })
-          .sort((left, right) => (right.fieldConfidence[field] ?? 0) - (left.fieldConfidence[field] ?? 0))[0];
+          .filter((alternative): alternative is { value: NonNullable<VerifiedParticipant[typeof field]>; confidence: number } =>
+            Boolean(alternative && alternative.value !== ''),
+          )
+          .sort((left, right) => right.confidence - left.confidence)[0];
         if (!alternative) continue;
-        const alternativeConfidence = alternative.fieldConfidence[field] ?? 0;
+        const alternativeConfidence = alternative.confidence;
         const hasCorrectionWarning = merged.warnings.some((warning) => warning.startsWith(field) && warning.includes('correction'));
         if (currentEmpty || hasCorrectionWarning || alternativeConfidence > currentConfidence + 10) {
-          merged[field] = alternative[field] as never;
+          merged[field] = alternative.value as never;
           merged.fieldConfidence[field] = alternativeConfidence;
           if (currentEmpty) {
             const warning = `${field} was recovered from another OCR pass; verify it`;
