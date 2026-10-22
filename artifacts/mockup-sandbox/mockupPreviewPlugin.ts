@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, writeFileSync } from "fs";
 import path from "path";
 import { glob } from "tinyglobby";
 import chokidar from "chokidar";
@@ -90,9 +90,9 @@ export function mockupPreviewPlugin(): Plugin {
     try {
       const components = await discoverComponents();
       const newSource = generateSource(components);
-      if (newSource !== currentSource) {
+      const generatedModuleAbsPath = getGeneratedModuleAbsPath();
+      if (newSource !== currentSource || !existsSync(generatedModuleAbsPath)) {
         currentSource = newSource;
-        const generatedModuleAbsPath = getGeneratedModuleAbsPath();
         mkdirSync(path.dirname(generatedModuleAbsPath), { recursive: true });
         writeFileSync(generatedModuleAbsPath, currentSource);
         changed = true;
