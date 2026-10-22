@@ -1,6 +1,6 @@
 # Throne & Liberty Wargames
 
-Throne & Liberty Wargames is a public record of organized 6v6 matches.
+Throne & Liberty Wargames is a public record of organized Team vs Team (GvG) matches.
 
 Anyone can view match results, player records, rankings, and season statistics.
 Visitors do not need an account. Match records and roster applications are
@@ -11,11 +11,11 @@ managed by authorized administrators.
 ### Public pages
 
 - Show the latest match and recent season activity
-- List completed matches and both six-player teams
+- List completed Team vs Team (GvG) matches with teams of up to 48 players each
 - Rank players by their match results
 - Compare weapon combinations and player performance
 - Open a player profile with match history, averages, and personal records
-- Accept applications from complete six-player groups
+- Accept applications for complete six-player guild rosters or statics
 
 The public archive starts empty. It does not create sample players, matches, or
 statistics.
@@ -23,9 +23,9 @@ statistics.
 ### Match recording
 
 Administrators can upload a scoreboard screenshot and use OCR to read it. OCR
-only prepares a draft. An administrator must check all 12 rows, confirm both
-teams, select missing weapons, and correct missing statistics before saving the
-match.
+only prepares a draft. An administrator must check every player row, confirm
+both teams, select missing weapons, and correct missing statistics before
+saving the match.
 
 The original scoreboard image is kept with the match record. Invalid team
 sizes, duplicate players, incomplete rows, and negative statistics are rejected.
