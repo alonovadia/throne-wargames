@@ -24,6 +24,7 @@ All notable changes to Throne & Liberty Wargames are documented here.
 
 ### Fixed
 
+- Resolved 16 dependency security advisories with patched versions and replaced the mockup preview glob package that had no fixed release.
 - Prevented unverified scoreboard rows from being accepted into archived match records.
 - Kept scoreboard uploads from being persisted when the corresponding match write fails.
 - Made class-catalog creation label and normalize class keys, explain missing operator information, and return clear validation errors instead of failing silently.
