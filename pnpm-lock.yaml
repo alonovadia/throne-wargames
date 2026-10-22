@@ -406,6 +406,9 @@ importers:
       tinyglobby:
         specifier: ^0.2.17
         version: 0.2.17
+      tsx:
+        specifier: 'catalog:'
+        version: 4.23.13
       tw-animate-css:
         specifier: ^1.4.0
         version: 1.4.0
