@@ -10,6 +10,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { createServer } from "vite";
 import { mockupPreviewPlugin } from "../mockupPreviewPlugin.ts";
 
 async function invokeHook(hook: unknown, ...args: unknown[]): Promise<void> {
@@ -80,6 +81,65 @@ test("discovers nested public mockups and excludes underscore-prefixed paths", a
     assert.equal((source.match(/\(\) => import\(/g) ?? []).length, 2);
   } finally {
     await plugin.closeWatcher?.();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("loads a nested public mockup through the generated Vite registry", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mockup-preview-vite-"));
+  const plugin = mockupPreviewPlugin();
+  let server: Awaited<ReturnType<typeof createServer>> | undefined;
+
+  try {
+    const nestedMockup = path.join(
+      root,
+      "src/components/mockups/nested/DeepPreview.tsx",
+    );
+    const privateMockup = path.join(
+      root,
+      "src/components/mockups/nested/_PrivatePreview.tsx",
+    );
+    await mkdir(path.dirname(nestedMockup), { recursive: true });
+    await writeFile(
+      nestedMockup,
+      "export default function DeepPreview() { return 'loaded'; }",
+    );
+    await writeFile(
+      privateMockup,
+      "export default function PrivatePreview() { return 'private'; }",
+    );
+
+    server = await createServer({
+      configFile: false,
+      root,
+      plugins: [plugin],
+      server: { middlewareMode: true, hmr: false },
+      logLevel: "silent",
+    });
+
+    const registry = await server.ssrLoadModule(
+      "/src/.generated/mockup-components.ts",
+    );
+    const componentPath = "./components/mockups/nested/DeepPreview.tsx";
+    assert.ok(
+      Object.hasOwn(registry.modules, componentPath),
+      "the nested public mockup should be in the loaded registry",
+    );
+    assert.deepEqual(
+      Object.keys(registry.modules),
+      [componentPath],
+      "underscore-prefixed mockups should not be in the loaded registry",
+    );
+
+    const componentModule = await registry.modules[componentPath]();
+    assert.equal(typeof componentModule.default, "function");
+    assert.equal(componentModule.default(), "loaded");
+  } finally {
+    if (server) {
+      await server.close();
+    } else {
+      await plugin.closeWatcher?.();
+    }
     await rm(root, { recursive: true, force: true });
   }
 });
