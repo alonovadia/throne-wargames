@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test:unit": "pnpm exec tsx --test ./tests/mockupPreviewPlugin.test.ts"
+    "test:unit": "pnpm exec tsx --test ./tests/mockupPreviewPlugin.test.ts ./mockupPreviewPlugin.test.mjs"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",
